@@ -12,6 +12,12 @@ app/_pid.txt
 # Excel 임시 잠금 파일
 ~$*
 
+# 시험 스크립트가 만드는 것(웹판 E2E 브라우저 프로필·캡처·결과 파일)
+tests/edgeprof_web/
+tests/*.png
+tests/web_report.xlsx
+tests/inner_*.xlsx
+
 __pycache__/
 *.pyc
 .vscode/

@@ -107,6 +107,9 @@ details.more[open]>summary:before{content:"▾ "}
 #sum tr.d.man td{background:#fff8e1}
 #sum tr.tot td{background:#fce4d6;font-weight:bold}
 #sum td.yr{background:#f0f6ff;font-weight:bold}
+#sum td .fx{display:none;font-size:10.5px;color:var(--sub);white-space:nowrap;font-family:Consolas,"Malgun Gothic",monospace;text-align:right}
+#sum.fx tr.d td .fx{display:block}
+#sum td[title]{cursor:help}
 #rates td{font-size:12px}
 .big{font-size:20px;font-weight:bold;color:#b42318}
 .tabs{display:flex;gap:6px;margin:14px 0 8px;border-bottom:1px solid var(--line)}
@@ -184,7 +187,7 @@ details.more[open]>summary:before{content:"▾ "}
     <div class="stage" id="stage"></div>
     <div class="tabs"><button class="on" data-t="sumtab">항목별 요약</button><button data-t="pvtab">회사 양식 미리보기 (예산안 보고서 · 27년 예산)</button></div>
     <div id="sumtab">
-      <div class="row" style="margin-bottom:6px"><span class="hint">항목을 누르면 산출근거가 펼쳐집니다</span><button class="sub small" id="bExpand">모두 펼치기</button></div>
+      <div class="row" style="margin-bottom:6px"><span class="hint">항목을 누르면 산출근거가 펼쳐집니다 · 월별 금액에 마우스를 올리면 산식(계산 수식)이 보입니다</span><button class="sub small" id="bExpand">모두 펼치기</button><button class="sub small" id="bFx">수식 보기</button></div>
       <div class="scroll"><table id="sum"></table></div>
       <div class="scroll" style="margin-top:12px"><table id="rates"></table></div>
     </div>
@@ -660,6 +663,11 @@ function stageClass(s) {
   return 's-' + s;
 }
 
+function fxCell(m, f) {          // 월별 금액 칸: 산식(계산 수식)이 있으면 마우스 올림 설명 + '수식 보기' 때 금액 아래 표시
+  if (!f) return `<td class="num">${k(m)}</td>`;
+  return `<td class="num" title="=${esc(f)}"><span class="v">${k(m)}</span><span class="fx">=${esc(f)}</span></td>`;
+}
+
 function renderResult(j) {
   $('#resbody').classList.remove('hidden');
   const ck = (j.checks || []).filter(c => !String(c).startsWith('✔'));
@@ -676,11 +684,12 @@ function renderResult(j) {
     if (!g.total && !g.rows.some(r => r.manual && r.total)) return;
     h += `<tr class="g" data-g="${gi}"><td class="it">${esc(g.item)}</td><td>${esc(g.sub)}</td><td class="num yr">${k(g.total)}</td>`
        + g.months.map(m => `<td class="num">${k(m)}</td>`).join('') + '</tr>';
-    for (const r of g.rows) {
-      if (!r.total) continue;
+    g.rows.forEach((r, ri) => {
+      if (!r.total) return;
+      const fx = (j.formulas && j.formulas[gi] && j.formulas[gi][ri]) || null;      // 줄의 12개월 산식(없으면 null)
       h += `<tr class="d ${r.manual ? 'man' : ''} hidden" data-p="${gi}"><td colspan="2" class="gtxt">${esc(r.g || '(직접입력)')}</td>`
-         + `<td class="num">${k(r.total)}</td>` + r.months.map(m => `<td class="num">${k(m)}</td>`).join('') + '</tr>';
-    }
+         + `<td class="num">${k(r.total)}</td>` + r.months.map((m, mi) => fxCell(m, fx && fx[mi])).join('') + '</tr>';
+    });
   });
   h += `<tr class="tot"><td colspan="2">합 계</td><td class="num">${k(j.total.total)}</td>` + j.total.months.map(m => `<td class="num">${k(m)}</td>`).join('') + '</tr>';
   $('#sum').innerHTML = h;
@@ -821,6 +830,15 @@ $('#bExpand').onclick = () => {
   $$('#sum tr.g').forEach(tr => tr.classList.toggle('open', open));
   $$('#sum tr.d').forEach(d => d.classList.toggle('hidden', !open));
   $('#bExpand').textContent = open ? '모두 접기' : '모두 펼치기';
+};
+$('#bFx').onclick = () => {          // 월별 금액 아래에 산식(계산 수식) 표시 — 켤 때는 항목을 모두 펼친다
+  const on = $('#sum').classList.toggle('fx');
+  $('#bFx').textContent = on ? '수식 숨기기' : '수식 보기';
+  if (on) {
+    $$('#sum tr.g').forEach(tr => tr.classList.add('open'));
+    $$('#sum tr.d').forEach(d => d.classList.remove('hidden'));
+    $('#bExpand').textContent = '모두 접기';
+  }
 };
 $$('.tabs button').forEach(b => b.onclick = () => {
   $$('.tabs button').forEach(x => x.classList.toggle('on', x === b));

@@ -47,6 +47,7 @@ for rj in jobs:
     got = site_io.calc_model(model, inp["data"])
     dt = time.time() - t
     exp.pop("sec", None); exp.pop("job", None); exp.pop("template_year", None); exp.pop("default_sub", None)
+    got.pop("formulas", None); exp.pop("formulas", None)      # 월별 산식은 값 비교 대상이 아님(tests/formula_check.py)
     diffs = same(got, exp)
     name = (inp["data"].get("fields") or {}).get("현장명")
     print(f"■ {os.path.basename(d)} {name}: 차이 {len(diffs)}개, {dt:.2f}초, 합계 {got['total']['total']:,.0f} vs {exp['total']['total']:,.0f}")

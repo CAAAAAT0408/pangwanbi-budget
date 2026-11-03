@@ -79,6 +79,8 @@ try:
     wait("!!(S.res) || !!window.__err", 120)
     print("예시1 불러오기 오류:", js("window.__err"), "| 합계:", js("document.querySelector('#tot').textContent"),
           "| 오류 셀:", js("S.res && S.res.nerrors"), "| 계산 시간:", js("S.res && S.res.sec"))
+    print("산식(월별 계산 수식) 칸:", js("S.res && S.res.formulas ? S.res.formulas.flat().filter(x => x).map(x => x.filter(y => y).length).reduce((a, b) => a + b, 0) : null"),
+          "| 화면 산식 칸:", js("document.querySelectorAll('#sum td[title]').length"))
     shot("web_example1.png")
 
     # 설계개요 엑셀 읽기

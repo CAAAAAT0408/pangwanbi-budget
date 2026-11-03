@@ -386,6 +386,9 @@ def fill_budget(sh, kit, res, title, date_txt, site, keep_interest=False):
     tot = _find(v, 0, lambda t: t.startswith('합'), hr)
     sub = _find(v, 3, lambda t: t == '소계', hr)
     T = dict(first=hr + 1, mid=hr + 2, sub=sub, first2=sub + 1, tot=tot)
+    for g, gf in zip(res['groups'], res.get('formulas') or []):      # 월별 산식(계산 과정) — 줄마다 12개월, 없으면 None
+        for r, rf in zip(g['rows'], gf or []):
+            r['fx'] = rf
     groups = []
     for g in res['groups']:
         rows = [r for r in g['rows'] if r['total'] or (r['manual'] and r['g'])]
@@ -408,7 +411,8 @@ def fill_budget(sh, kit, res, title, date_txt, site, keep_interest=False):
         g = groups[gi][0]
         if kind == 'row':
             start_of.setdefault(gi, rr)
-            months = ['' if not m else m for m in r['months']]
+            fx = r.get('fx') or [None] * 12
+            months = [('=' + f) if f else ('' if not m else m) for m, f in zip(r['months'], fx)]   # 산식이 있으면 수식으로
             out.append([g['item'] if k == 0 else '', '', g['sub'] if k == 0 else '', '', f'=I{rr}', ' ' + r['g'].strip(),
                         '', f'=SUM(J{rr}:U{rr})'] + months)
             set_row_height(sh, rr, 19.5 if _lines(r['g']) == 1 else 15 * _lines(r['g']) + 6)

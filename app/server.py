@@ -48,6 +48,20 @@ import apply_kijun  # noqa: E402
 import report       # noqa: E402
 import site_io      # noqa: E402
 import design_overview  # noqa: E402
+import xlcalc       # noqa: E402
+
+_MODELS = {}
+_MODEL_LOCK = threading.Lock()
+
+
+def model_for(tpl):
+    """계산용 양식의 수식 계산기(xlcalc) — 보고서 월별 칸에 넣는 산식(계산 과정)을 만들 때 쓴다. 금액 계산은 Excel 결과 그대로."""
+    key = (tpl, os.path.getmtime(tpl))
+    m = _MODELS.get(key)
+    if m is None:
+        _MODELS.clear()
+        m = _MODELS[key] = xlcalc.Model(tpl)
+    return m
 
 os.makedirs(FORMS, exist_ok=True)
 
@@ -518,6 +532,11 @@ class Handler(BaseHTTPRequestHandler):
         site_io.write_inputs(tpl, work, data)
         wjson(os.path.join(JOBS, jid, 'input.json'), {'year': y, 'data': data})
         res = WORKER.call(site_io.excel_calc, work)
+        try:                                           # 월별 산식(보고서 칸에 '=35*2000*1000' 처럼) — 실패해도 값은 그대로
+            with _MODEL_LOCK:
+                site_io.attach_formulas(model_for(tpl), data, res)
+        except Exception:
+            log.warning('산식 만들기 실패(값만 씀)\n%s', traceback.format_exc())
         wjson(os.path.join(JOBS, jid, 'result.json'), res)
         res['sec'] = round(time.time() - t, 1)
         res['job'] = jid

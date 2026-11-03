@@ -62,7 +62,7 @@ FIELD_TAGS = {
     "오픈": _NR, "사전영업": _N, "MH종료": _NR, "목표분양률": _NR, "전년분양": "remain movein", "분양대행": _NR,
     "조직": _NR, "조직시작": _NR, "조직종료": _NR, "조직비율": _NR, "조직단가": _NR,
     "전기미인입": _N, "주차장": _N, "MH중개": _N, "분양가용역": _N, "유니트": _NR, "숙소분양": _N, "PC": _NR,
-    "복합기": "new remain movein", "보험월": _NR, "특공세대": _N, "예비비율": _N, "등기월1": _NR, "등기월2": _NR,
+    "복합기": "new remain movein", "보험월": _NR, "예비비율": _N, "등기월1": _NR, "등기월2": _NR,
     "아르바이트": _N, "카페테리아": _N, "무순위": _N, "계약취소": _N,
     "갑티슈사전": _N, "갑티슈오픈": _N, "물티슈": _N, "종이컵": _N, "크린홈": _N, "마스크": _N, "대형마트": _N,
     "현수막주수": _NR, "현수막감축": _NR, "현수막감축주수": _NR, "오픈선물인원": _N, "청약선물인원": _N,
@@ -373,7 +373,25 @@ def calc_model(model, data):
 
     def name_value(name):
         return conv(model.name_value(name))
-    return read_results_from(model.sheetnames, get2d, name_value, lambda s: model.maxrow.get(s, 0), errors)
+    return read_results_from(model.sheetnames, get2d, name_value, lambda s: model.maxrow.get(s, 0), errors,
+                             explain=model.explain)
+
+
+def attach_formulas(model, data, res):
+    """Excel 로 계산한 결과(res)에 수식 계산기(xlcalc)로 푼 월별 산식(res['formulas'])을 붙인다 — 보고서 월별 칸용.
+    두 결과의 구조(묶음·줄 수·줄 합계)가 다르면 붙이지 않는다(값만 쓴다). 붙였으면 True."""
+    m = calc_model(model, data)
+    fx = m.get("formulas")
+    if not fx or len(m["groups"]) != len(res.get("groups") or []):
+        return False
+    for g1, g2, f in zip(m["groups"], res["groups"], fx):
+        if len(g1["rows"]) != len(g2["rows"]) or len(f) != len(g2["rows"]):
+            return False
+        for r1, r2 in zip(g1["rows"], g2["rows"]):
+            if abs(float(r1["total"] or 0) - float(r2["total"] or 0)) > 1:
+                return False
+    res["formulas"] = fx
+    return True
 
 
 def _v(x):
@@ -427,13 +445,15 @@ def read_results(wb):
     return read_results_from([ws.Name for ws in wb.Worksheets], get2d, name_value, last_row, errors)
 
 
-def read_results_from(sheetnames, get2d, name_value, last_row, errors):
-    """get2d(시트, 'A1:U300') → 2차원 값(오류는 '#…' 글자), name_value(이름) → 값, last_row(시트) → 마지막 행"""
+def read_results_from(sheetnames, get2d, name_value, last_row, errors, explain=None):
+    """get2d(시트, 'A1:U300') → 2차원 값(오류는 '#…' 글자), name_value(이름) → 값, last_row(시트) → 마지막 행.
+    explain(시트, 행, 열) → 그 칸의 산식 글(없으면 None)을 주면 결과에 formulas(묶음별·줄별 12개월 산식)를 함께 담는다."""
     bname = next(n for n in sheetnames if re.fullmatch(r"\d{2}년 예산", n))
     last = last_row(bname)
     data = get2d(bname, f"A1:U{last}")
     stage = [_v(x) or "" for x in data[4][9:21]]
     groups, cur = [], None
+    fxs, cur_fx = [], None
     total = dict(total=0, months=[0] * 12)
     for i, row in enumerate(data, start=1):
         if i < 7:
@@ -446,17 +466,23 @@ def read_results_from(sheetnames, get2d, name_value, last_row, errors):
         if item:
             cur = dict(item=item, sub=sub or "", rows=[], total=0, months=[0] * 12)
             groups.append(cur)
+            cur_fx = []
+            fxs.append(cur_fx)
         if cur is None:
             continue
         if isinstance(sub, str) and sub.replace(" ", "") == "소계":
             cur["total"] = _v(tot) or 0
             cur["months"] = months
             cur = None
+            cur_fx = None
             continue
         manual = note == "직접입력"
         if manual and not any(isinstance(m, (int, float)) and m for m in months) and not g:
             continue
         cur["rows"].append(dict(g=(g or "").strip(), total=_v(tot) or 0, months=months, manual=manual))
+        if explain is not None:
+            fx = None if manual else [explain(bname, i, 10 + j) for j in range(12)]
+            cur_fx.append(fx if fx and any(fx) else None)
     rs = get2d("분양율,입주율", "E8:T16")          # 행 8~16, 열 E(5)~T(20)
 
     def rr(row, c0=9, n=12):
@@ -474,6 +500,9 @@ def read_results_from(sheetnames, get2d, name_value, last_row, errors):
                  공가=name_value("기준_공가관리비"))
     di = get2d("대납이자", "B36:C37")
     rates_int = [di[0][0], di[0][1], di[1][0], di[1][1]]
-    return dict(sheet=bname, year=int("20" + bname[:2]), stage=stage, groups=groups, total=total,
-                rates=rates, checks=checks, errors=errors[:30], nerrors=len(errors),
-                calc=calc, price=price, interest=rates_int)
+    out = dict(sheet=bname, year=int("20" + bname[:2]), stage=stage, groups=groups, total=total,
+               rates=rates, checks=checks, errors=errors[:30], nerrors=len(errors),
+               calc=calc, price=price, interest=rates_int)
+    if explain is not None:
+        out["formulas"] = fxs
+    return out

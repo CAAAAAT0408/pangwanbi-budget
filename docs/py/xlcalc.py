@@ -860,3 +860,226 @@ class Model:
                 raise XLError(ERR_NA)
             return float(best)
         raise XLError(ERR_NAME)
+
+    # ---- 산식 풀이 ──────────────────────────────────────────────────────────────
+    # 보고서(회사 양식)의 월별 칸에 값 대신 계산 과정이 보이는 수식('=35*2000*1000')을 넣기 위한 것.
+    # 셀 수식에서 IF/IFERROR 는 참인 가지만 남기고, 조건식·글자 함수·범위 함수·입력값/기준단가 참조는 계산값으로 바꾼다.
+    # '계산' 시트의 단일 값(D열)과 분양대행·공가·대납이자 시트의 수식 칸은 그 수식을 다시 풀어 끼우고(깊이 제한),
+    # 월별 단계 깃발(0/1)과 조건에서 나온 0/1 은 지운다. SUM(범위) 는 0 이 아닌 항을 더한 식으로 펼치고 공통 인수는 묶는다.
+    _PREC = {"+": 1, "-": 1, "*": 2, "/": 2, "^": 3}
+    _KEEP = ("ROUND", "ROUNDUP", "ROUNDDOWN", "INT", "ABS", "MOD", "MIN", "MAX")
+    INLINE_SHEETS = ("분양대행 및 촉진수수료", "공가세대관리비", "대납이자")
+    INLINE_DEPTH = 2
+    MAX_LEN = 250
+
+    def explain(self, sheet, r, c):
+        """셀의 산식(앞의 '=' 없음). 수식이 아니거나·덮어쓴 입력이거나·값이 숫자가 아니거나 0 이면 None.
+        푼 식을 다시 계산해 셀 값과 같을 때만 돌려준다(아니면 None → 값을 그대로 쓰면 된다)."""
+        raw = self.cells.get(sheet, {}).get((r, c))
+        if (sheet, r, c) in self.over or not (isinstance(raw, tuple) and raw and raw[0] == "F"):
+            return None
+        v = self.cell(sheet, r, c)
+        if not _is_num(v) or float(v) == 0:
+            return None
+        try:
+            ast = self.ast.get(raw[1])
+            if ast is None:
+                ast = Parser(raw[1]).parse()
+                self.ast[raw[1]] = ast
+            text = self._ex(ast, sheet, r, c, self.INLINE_DEPTH)[0]
+            chk = self._scalar(self._ev(Parser(text).parse(), sheet, r, c), sheet, r, c)
+        except Exception:
+            return None
+        if not _is_num(chk) or abs(float(chk) - float(v)) > 1e-6 * max(1.0, abs(float(v))):
+            return None
+        if len(text) > self.MAX_LEN or re.fullmatch(r"\(?-?[\d.]+(E[+-]\d+)?\)?", text):   # 숫자 하나뿐이면 뜻이 없음
+            return None
+        return text
+
+    # 각 조각은 (글, 우선순위, 종류, 인수목록): 종류 lit=숫자, flag=조건·단계에서 나온 0/1(지워도 됨), expr=식
+    @staticmethod
+    def _lit(v):
+        t = general(num(v))
+        return t, 9, "lit", [t]
+
+    @staticmethod
+    def _wrap(part, op, right):
+        text, prec = part[0], part[1]
+        p = Model._PREC[op]
+        if text.startswith("-") and (right or op == "^"):
+            return "(" + text + ")"
+        if prec < p or (right and prec == p and op in ("-", "/", "^")):
+            return "(" + text + ")"
+        return text
+
+    @staticmethod
+    def _as_factors(part):
+        if part[2] == "expr" and part[1] == 2 and len(part[3]) > 1:
+            return list(part[3])
+        return [Model._wrap(part, "*", True)]
+
+    def _neg(self, part):
+        text, prec, kind, _ = part
+        if kind in ("lit", "flag"):
+            if text == "0":
+                return part
+            t = general(-float(text))
+            return t, 9, "lit", [t]
+        t = "-" + text if prec == 9 else "-(" + text + ")"
+        return t, 9, "expr", [t]
+
+    def _combine(self, op, A, B):
+        ta, pa, ka, fa = A
+        tb, pb, kb, fb = B
+        if op == "*":
+            if ka == "flag" and ta == "1":
+                return B
+            if kb == "flag" and tb == "1":
+                return A
+            if (ka == "flag" and ta == "0") or (kb == "flag" and tb == "0"):
+                return "0", 9, "flag", ["0"]
+            fs = self._as_factors(A) + self._as_factors(B)
+            return "*".join(fs), 2, "expr", fs
+        if op in ("+", "-"):
+            if kb == "flag" and tb == "0":
+                return A
+            if ka == "flag" and ta == "0":
+                return B if op == "+" else self._neg(B)
+            if ka in ("lit", "flag") and kb in ("lit", "flag") and (ka == "flag" or kb == "flag"):
+                x = float(ta) + float(tb) if op == "+" else float(ta) - float(tb)
+                t = general(x)
+                return t, 9, ("flag" if ka == kb == "flag" and x in (0.0, 1.0) else "lit"), [t]
+            t = self._wrap(A, op, False) + op + self._wrap(B, op, True)
+            return t, 1, "expr", [t]
+        if op == "/" and kb == "flag" and tb == "1":
+            return A
+        t = self._wrap(A, op, False) + op + self._wrap(B, op, True)
+        return t, self._PREC[op], "expr", [t]
+
+    def _ref_text(self, ts, tr, tc, depth):
+        """참조한 칸 하나 → 조각. 입력값·기준단가는 값, 월별 단계 깃발은 flag, 풀 수 있는 수식 칸은 풀어서."""
+        raw = self.cells.get(ts, {}).get((tr, tc))
+        v = self.cell(ts, tr, tc)
+        if isinstance(v, XLError):
+            raise v
+        if (ts, tr, tc) in self.over or not (isinstance(raw, tuple) and raw and raw[0] == "F"):
+            return self._lit(v)
+        if ts == "계산" and tc >= 10:                 # 월별 단계·세대 행: 0/1 은 깃발, 그 밖은 값
+            if _is_num(v) and float(v) in (0.0, 1.0):
+                return general(v), 9, "flag", [general(v)]
+            return self._lit(v)
+        if depth <= 0 or not ((ts == "계산" and tc == 4) or ts in self.INLINE_SHEETS):
+            return self._lit(v)
+        ast = self.ast.get(raw[1])
+        if ast is None:
+            ast = Parser(raw[1]).parse()
+            self.ast[raw[1]] = ast
+        try:
+            part = self._ex(ast, ts, tr, tc, depth - 1)
+        except XLError:
+            raise
+        except Exception:
+            return self._lit(v)
+        if len(part[0]) > self.MAX_LEN:
+            return self._lit(v)
+        return part
+
+    def _ex(self, n, sheet, r, c, depth):
+        k = n[0]
+        if k == "num":
+            return self._lit(n[1])
+        if k in ("str", "bool", "err", "empty", "pct"):
+            return self._lit(self._scalar(self._ev(n, sheet, r, c), sheet, r, c))
+        if k in ("ref", "name"):
+            v = self._ev(n, sheet, r, c)
+            if isinstance(v, Range) and v.r1 is not None and v.c1 is not None and v.r1 == v.r2 and v.c1 == v.c2:
+                return self._ref_text(v.sheet, v.r1, v.c1, depth)
+            return self._lit(self._scalar(v, sheet, r, c))
+        if k == "un":
+            part = self._ex(n[2], sheet, r, c, depth)
+            return part if n[1] == "+" else self._neg(part)
+        if k == "bin":
+            op = n[1]
+            if op in ("=", "<>", "<", ">", "<=", ">=", "&"):
+                return self._lit(self._scalar(self._ev(n, sheet, r, c), sheet, r, c))
+            return self._combine(op, self._ex(n[2], sheet, r, c, depth), self._ex(n[3], sheet, r, c, depth))
+        if k == "func":
+            return self._ex_func(n[1], n[2], sheet, r, c, depth)
+        raise ValueError(k)
+
+    def _ex_func(self, name, args, sheet, r, c, depth):
+        value = lambda: self._lit(self._scalar(self._func(name, args, sheet, r, c), sheet, r, c))
+        if name == "IF":
+            cond = truth(self._scalar(self._ev(args[0], sheet, r, c), sheet, r, c))
+            i = 1 if cond else 2
+            if len(args) <= i:
+                return ("1" if cond else "0"), 9, "flag", ["1" if cond else "0"]
+            part = self._ex(args[i], sheet, r, c, depth)
+            if args[i][0] in ("num", "bool") and part[0] in ("0", "1"):      # IF(…,1,0) 처럼 수식에 적힌 0/1 은 깃발
+                return part[0], 9, "flag", [part[0]]
+            return part
+        if name == "IFERROR":
+            try:
+                v = self._scalar(self._ev(args[0], sheet, r, c), sheet, r, c)
+                if isinstance(v, XLError):
+                    raise v
+                return self._ex(args[0], sheet, r, c, depth)
+            except XLError:
+                return self._ex(args[1], sheet, r, c, depth) if len(args) > 1 else self._lit(0)
+        if name == "SUM":
+            terms = self._sum_terms(args, sheet, r, c, depth)
+            if terms is None:
+                return value()
+            if not terms:
+                return "0", 9, "flag", ["0"]
+            if len(terms) == 1:
+                return terms[0]
+            if all(len(t[3]) >= 2 for t in terms):                      # 공통 인수 묶기: 15*2000+6*2000 → (15+6)*2000
+                for f in terms[0][3]:
+                    if all(f in t[3] for t in terms[1:]):
+                        rest = []
+                        for t in terms:
+                            fs = list(t[3])
+                            fs.remove(f)
+                            rest.append("*".join(fs))
+                        inner = "(" + "+".join(rest) + ")"
+                        return inner + "*" + f, 2, "expr", [inner, f]
+            t = "(" + "+".join(x[0] for x in terms) + ")"
+            return t, 9, "expr", [t]
+        if name in self._KEEP:
+            parts = []
+            for a in args:
+                v = self._ev(a, sheet, r, c)
+                if isinstance(v, Arr) or (isinstance(v, Range) and not (v.r1 == v.r2 and v.c1 == v.c2)):
+                    return value()
+                parts.append(self._ex(a, sheet, r, c, depth))
+            if all(p[2] in ("lit", "flag") for p in parts):             # 인수가 모두 숫자면 값으로
+                return value()
+            t = name + "(" + ",".join(p[0] for p in parts) + ")"
+            return t, 9, "expr", [t]
+        return value()
+
+    def _sum_terms(self, args, sheet, r, c, depth):
+        """SUM 인수 → 0 이 아닌 항의 조각 목록. 범위가 크거나 배열이면 None(값으로 쓴다)."""
+        terms = []
+        for a in args:
+            v = self._ev(a, sheet, r, c)
+            if isinstance(v, Range):
+                if v.r1 is None or v.c1 is None or (v.r2 - v.r1 + 1) * (v.c2 - v.c1 + 1) > 60:
+                    return None
+                for rr in range(v.r1, v.r2 + 1):
+                    for cc in range(v.c1, v.c2 + 1):
+                        x = self.cell(v.sheet, rr, cc)
+                        if isinstance(x, XLError):
+                            raise x
+                        if _is_num(x) and float(x) != 0:
+                            terms.append(self._ref_text(v.sheet, rr, cc, depth))
+            elif isinstance(v, Arr):
+                return None
+            else:
+                part = self._ex(a, sheet, r, c, depth)
+                if part[0] != "0":
+                    terms.append(part)
+            if len(terms) > 24:
+                return None
+        return terms
