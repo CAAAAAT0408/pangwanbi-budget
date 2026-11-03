@@ -4,6 +4,7 @@ app/_key.txt
 app/_url.txt
 app/_server.log
 app/_sites.json
+app/_jichul_sites.json
 app/_pid.txt
 
 # 양식 재생성 백업
@@ -14,8 +15,13 @@ app/_pid.txt
 
 # 시험 스크립트가 만드는 것(웹판 E2E 브라우저 프로필·캡처·결과 파일)
 tests/edgeprof_web/
+tests/edgeprof_*/
+tests/pc_jichul.xlsx
 tests/*.png
 tests/web_report.xlsx
+tests/jichul_*.xlsx
+tests/jichul_*.pdf
+tests/web_jichul.xlsx
 tests/inner_*.xlsx
 
 __pycache__/

@@ -34,6 +34,9 @@ URLFILE = os.path.join(APP, '_url.txt')
 LOGFILE = os.path.join(APP, '_server.log')
 SITES = os.path.join(APP, '_sites.json')
 FORMS = os.path.join(ROOT, '회사양식')             # 경영기획팀 '사업비 예산편성 양식' (결과물이 이 양식 그대로 나감)
+DOCS = os.path.join(ROOT, 'docs')                  # 지출계획서 화면(docs/jichul/index.html)은 웹판과 같은 파일
+JICHUL_SITES = os.path.join(APP, '_jichul_sites.json')
+JICHUL_ROOT = os.path.join(BUDGET_ROOT, '★ 지출계획서')   # PC 판 기본 저장 위치: ★ 지출계획서\\<현장명>\\
 MAX_UPLOAD = 40 * 1024 * 1024
 KEEP_HOURS = 24
 IDLE_QUIT = 60            # 마지막 계산 뒤 이 초가 지나면 Excel 을 끈다
@@ -49,6 +52,8 @@ import report       # noqa: E402
 import site_io      # noqa: E402
 import design_overview  # noqa: E402
 import xlcalc       # noqa: E402
+import jichul       # noqa: E402
+import jichul_xlsx  # noqa: E402
 
 _MODELS = {}
 _MODEL_LOCK = threading.Lock()
@@ -369,6 +374,36 @@ def default_sub(fields, year, kinds=None):
     return '기공급'
 
 
+_KIJUN = {}
+
+
+def kijun_for(tpl):
+    """양식의 '기준단가' 시트 → ({이름: 값}, template_info) — 지출계획서 계산용(예산안과 같은 단가)"""
+    key = (tpl, os.path.getmtime(tpl))
+    if key not in _KIJUN:
+        _KIJUN.clear()
+        t = site_io.template_info(tpl)
+        _KIJUN[key] = ({p['key']: p['value'] for p in t['params'] if 'key' in p}, t)
+    return _KIJUN[key]
+
+
+def jichul_sites_list():
+    items = rjson(JICHUL_SITES, []) or []
+    out, seen = [], set()
+    for it in sorted(items, key=lambda x: x.get('saved', ''), reverse=True):
+        p = fix_drive(it.get('path'))
+        if p and p not in seen and os.path.exists(p):
+            seen.add(p)
+            out.append(dict(it, path=p))
+    return out[:200]
+
+
+def remember_jichul_site(name, path, year, total):
+    items = [x for x in (rjson(JICHUL_SITES, []) or []) if x.get('path') != path]
+    items.append(dict(name=name, path=path, year=year, total=total, saved=time.strftime('%Y-%m-%d %H:%M')))
+    wjson(JICHUL_SITES, items[-500:])
+
+
 # ------------------------------------------------------------------ HTTP
 
 class Handler(BaseHTTPRequestHandler):
@@ -436,6 +471,14 @@ class Handler(BaseHTTPRequestHandler):
                     extra['Set-Cookie'] = f'k={KEY}; Path=/; Max-Age=31536000; SameSite=Lax'
                 with open(os.path.join(APP, 'static', 'index.html'), 'rb') as f:
                     return self.send(200, f.read(), 'text/html; charset=utf-8', extra)
+            if url.path in ('/jichul', '/jichul/', '/jichul/index.html'):
+                extra = {}
+                if q.get('k') == KEY:
+                    extra['Set-Cookie'] = f'k={KEY}; Path=/; Max-Age=31536000; SameSite=Lax'
+                with open(os.path.join(DOCS, 'jichul', 'index.html'), 'rb') as f:
+                    return self.send(200, f.read(), 'text/html; charset=utf-8', extra)
+            if url.path.startswith('/api/jichul/'):
+                return self.jichul_get(url.path[len('/api/jichul/'):], q)
             if url.path == '/api/ping':
                 return self.send(200, {'ok': True, 'app': 'pangwanbi-budget', 'local': self.is_local()})
             if url.path == '/api/info':
@@ -505,7 +548,10 @@ class Handler(BaseHTTPRequestHandler):
         try:
             route = {'/api/calc': self.api_calc, '/api/save': self.api_save, '/api/load': self.api_load,
                      '/api/load_path': self.api_load_path, '/api/kijun': self.api_kijun, '/api/open': self.api_open,
-                     '/api/report': self.api_report, '/api/form': self.api_form, '/api/types': self.api_types}
+                     '/api/report': self.api_report, '/api/form': self.api_form, '/api/types': self.api_types,
+                     '/api/jichul/calc': self.jichul_calc, '/api/jichul/xlsx': self.jichul_xlsx, '/api/jichul/save': self.jichul_save,
+                     '/api/jichul/load': self.jichul_load, '/api/jichul/load_path': self.jichul_load_path,
+                     '/api/jichul/open': self.jichul_open}
             if url.path in route:
                 return route[url.path]()
             if url.path == '/api/shutdown' and self.is_local():
@@ -521,6 +567,109 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             log.error('POST %s\n%s', self.path, traceback.format_exc())
             return self.fail(f'처리 중 오류가 났습니다: {e}', 500)
+
+    # ---------------------------------------------------------------- 지출계획서
+    def jichul_get(self, cmd, q):
+        y, tpl = template_for(q.get('year'))
+        K, t = kijun_for(tpl)
+        if cmd == 'info':
+            ts = apply_kijun.templates()
+            info = {'ok': True, 'local': self.is_local(), 'year': y, 'kijun': t.get('kijun'), 'written': t.get('written'),
+                    'template': os.path.basename(tpl), 'count': len(K), 'jichul_root': JICHUL_ROOT,
+                    'templates': [{'year': yy, 'name': os.path.basename(p)} for yy, p in ts]}
+            if self.is_local():
+                info['share_url'] = f'http://{lan_ip()}:{PORT}/jichul/?k={KEY}'
+            return self.send(200, info)
+        if cmd == 'schema':
+            return self.send(200, {'ok': True, 'year': y, **jichul.schema(K)})
+        if cmd == 'params':
+            return self.send(200, {'ok': True, 'year': y, 'kijun': t.get('kijun'), 'written': t.get('written'), 'params': t['params']})
+        if cmd == 'recent':
+            return self.send(200, {'ok': True, 'sites': jichul_sites_list() if self.is_local() else []})
+        return self.fail('없는 주소입니다.', 404)
+
+    def _jichul_res(self, req):
+        y, tpl = template_for(req.get('year'))
+        K, _ = kijun_for(tpl)
+        data = req.get('data') or {}
+        res = jichul.calc(data, K)
+        res['file_name'] = jichul.file_name(res)
+        res['year'] = y
+        return y, data, res
+
+    def jichul_calc(self):
+        y, data, res = self._jichul_res(self.jbody())
+        log.info('jichul calc %s %s 합계 %s', res.get('site'), res.get('kind'), res.get('total_all'))
+        self.send(200, {'ok': True, **res})
+
+    def jichul_xlsx(self):
+        req = self.jbody()
+        y, data, res = self._jichul_res(req)
+        out = jichul_xlsx.build_xlsx(res, data, y)
+        name = safe_name(req.get('name') or res['file_name'])
+        if not name.lower().endswith('.xlsx'):
+            name += '.xlsx'
+        self.send(200, out, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                  {'Content-Disposition': "attachment; filename*=UTF-8''" + urllib.parse.quote(name)})
+
+    def jichul_save(self):
+        self.need_local()
+        req = self.jbody()
+        y, data, res = self._jichul_res(req)
+        site = safe_name(res.get('site'))
+        folder = (req.get('folder') or '').strip() or os.path.join(JICHUL_ROOT, site)
+        fname = safe_name(req.get('filename') or res['file_name'])
+        if not fname.lower().endswith('.xlsx'):
+            fname += '.xlsx'
+        path = os.path.join(folder, fname)
+        if os.path.exists(path) and not req.get('overwrite'):
+            return self.send(200, {'ok': False, 'exists': True, 'path': path})
+        if os.path.exists(os.path.join(folder, '~$' + fname)):
+            raise UserError('같은 이름의 파일이 Excel 에 열려 있습니다. 닫고 다시 저장하세요.')
+        try:
+            os.makedirs(folder, exist_ok=True)
+        except OSError as e:
+            raise UserError(f'폴더를 만들 수 없습니다: {folder} ({e})')
+        with open(path, 'wb') as f:
+            f.write(jichul_xlsx.build_xlsx(res, data, y))
+        remember_jichul_site(f"{site} {res.get('kind')} {jichul.period_text(res)}", path, y, res.get('total_all'))
+        log.info('jichul save %s', path)
+        self.send(200, {'ok': True, 'path': path, 'folder': folder})
+
+    def _jichul_loaded(self, path, name):
+        obj = jichul_xlsx.read_inputs(path)
+        if not obj:
+            raise UserError('지출계획서 자동작성으로 만든 파일이 아닙니다(입력값이 들어 있지 않음).')
+        return self.send(200, {'ok': True, 'data': obj.get('data') or {}, 'year': obj.get('year'), 'name': name})
+
+    def jichul_load(self):
+        files, form = parse_multipart(self.headers.get('Content-Type', ''), self.body())
+        if 'file' not in files:
+            raise UserError('엑셀 파일을 넣어 주세요.')
+        name, data = files['file']
+        if not name.lower().endswith('.xlsx'):
+            raise UserError('엑셀(.xlsx) 파일이어야 합니다.')
+        jid = new_job()
+        p = os.path.join(JOBS, jid, 'load.xlsx')
+        with open(p, 'wb') as f:
+            f.write(data)
+        return self._jichul_loaded(p, name)
+
+    def jichul_load_path(self):
+        self.need_local()
+        p = fix_drive(self.jbody().get('path') or '')
+        if not os.path.exists(p):
+            raise UserError('파일이 없습니다: ' + p)
+        return self._jichul_loaded(p, os.path.basename(p))
+
+    def jichul_open(self):
+        self.need_local()
+        p = self.jbody().get('path') or ''
+        known = {x['path'] for x in jichul_sites_list()} | {os.path.dirname(x['path']) for x in jichul_sites_list()}
+        if not os.path.exists(p) or not (p.startswith(BUDGET_ROOT) or p in known):
+            raise UserError('열 수 없는 경로입니다.')
+        os.startfile(p)
+        self.send(200, {'ok': True})
 
     def api_calc(self):
         req = self.jbody()

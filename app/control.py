@@ -1,6 +1,7 @@
 """서버 켜기/끄기/상태/자동시작. 폴더의 .bat 파일들이 이 스크립트를 부른다.
 
   python control.py open        서버가 꺼져 있으면 창 없이 켜고 브라우저를 연다
+  python control.py open jichul 같은 서버의 지출계획서 화면(/jichul/)을 연다
   python control.py start | stop | status
   python control.py autostart-on | autostart-off
 """
@@ -96,11 +97,12 @@ def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'status'
     print()
     if cmd == 'open':
+        page = sys.argv[2] if len(sys.argv) > 2 else ''        # 'jichul' = 지출계획서 화면
         r = start()
         show_start(r)
         if r != 'failed':
             show_urls()
-            webbrowser.open(f'http://localhost:{PORT}/')
+            webbrowser.open(f'http://localhost:{PORT}/' + (page.strip('/') + '/' if page else ''))
         return 0 if r != 'failed' else 1
     if cmd == 'start':
         r = start()

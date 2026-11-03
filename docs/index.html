@@ -142,7 +142,7 @@ details.more[open]>summary:before{content:"▾ "}
 </head>
 <body>
 <header><h1>판관비 예산안 자동작성</h1><span>현장 조건 입력 → 기준안대로 계산 → 회사 「사업비 예산편성 양식」 그대로 엑셀</span>
-  <span class="hint" id="share" style="color:#c7d1e3">웹판 — 입력한 값과 파일은 서버로 가지 않고 브라우저 안에서 계산합니다</span></header>
+  <span class="hint" id="share" style="color:#c7d1e3">웹판 — 입력한 값과 파일은 서버로 가지 않고 브라우저 안에서 계산합니다</span><a href="jichul/" style="color:#ffd27a;margin-left:auto;font-size:13px;text-decoration:none">지출계획서 자동작성 →</a></header>
 <main>
 <div id="banner" class="msg warn hidden"></div>
 
@@ -245,7 +245,7 @@ const fmtv = v => (v === null || v === undefined) ? '' : (typeof v === 'number' 
 
 // ───────────── 웹판: 서버 대신 브라우저 안 Python(워커, Pyodide)이 /api/… 와 같은 일을 한다
 const WEB = true;
-const VERSION = '2026.11.03.1748';
+const VERSION = '2026.11.03.1947';
 const EXAMPLES = [     // docs/examples/ 에 같이 올려 둔 작성 예시 (tool/sync_web.py 가 복사)
   {file: '(예시1) 신규분양 - 27.04 오픈 C급 조직분양.xlsx', name: '예시1 신규분양(27.04 오픈)', year: 2027, total: 6106656},
   {file: '(예시2) 입주현장 - 27.05 사전점검, 27.06 입주.xlsx', name: '예시2 입주현장', year: 2027, total: 1569221},

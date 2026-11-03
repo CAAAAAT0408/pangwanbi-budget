@@ -11,7 +11,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOL = os.path.join(ROOT, "tool")
 DOCS = os.path.join(ROOT, "docs")
 PY = ["xlcalc.py", "params.py", "kijun_parser.py", "build_template.py", "site_io.py", "xlsxio.py",
-      "report.py", "report_xl.py", "design_overview.py"]
+      "report.py", "report_xl.py", "design_overview.py", "jichul.py", "jichul_xlsx.py"]
 
 
 def latest_template():
@@ -41,17 +41,25 @@ def main():
         if not os.path.basename(ex).startswith("~$"):
             shutil.copyfile(ex, os.path.join(DOCS, "examples", os.path.basename(ex)))
     import json
+    import sys
+    sys.path.insert(0, TOOL)
+    import site_io
+    t = site_io.template_info(tpl)          # 지출계획서 웹판용 기준단가(양식의 '기준단가' 시트 → JSON)
+    with open(os.path.join(DOCS, "data", "kijun.json"), "w", encoding="utf-8") as f:
+        json.dump(dict(year=t["year"], kijun=t["kijun"], written=t["written"], template=os.path.basename(tpl),
+                       synced=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), params=t["params"]),
+                  f, ensure_ascii=False, indent=1, default=str)
     with open(os.path.join(DOCS, "data", "manifest.json"), "w", encoding="utf-8") as f:
         json.dump(dict(template=os.path.basename(tpl), form=os.path.basename(forms[-1]), year=year,
                        synced=datetime.datetime.now().strftime("%Y-%m-%d %H:%M")), f, ensure_ascii=False, indent=1)
     ver = datetime.datetime.now().strftime("%Y.%m.%d.%H%M")
-    for fn in ("worker.js", "index.html"):
+    for fn in ("worker.js", "index.html", os.path.join("jichul", "worker.js"), os.path.join("jichul", "index.html")):
         p = os.path.join(DOCS, fn)
         s = open(p, encoding="utf-8").read()
         s2 = re.sub(r"const VERSION = '[^']*'", f"const VERSION = '{ver}'", s)
         if s2 != s:
             open(p, "w", encoding="utf-8").write(s2)
-    print(f"docs 갱신: 엔진 {len(PY)}개, 양식 {os.path.basename(tpl)}, 회사양식 {os.path.basename(forms[-1])}, VERSION {ver}")
+    print(f"docs 갱신: 엔진 {len(PY)}개, 양식 {os.path.basename(tpl)}, 회사양식 {os.path.basename(forms[-1])}, 기준단가 {len(t['params'])}줄, VERSION {ver}")
 
 
 if __name__ == "__main__":
