@@ -699,8 +699,13 @@ def _excel_results(path, max_types):
 
 # ───────────────────────────── PDF
 def _fitz():
-    import site
-    site.addsitedir(site.getusersitepackages())
+    try:                                   # PC 판: --user 로 설치한 PyMuPDF (python -I 로 돌 때)
+        import site
+        usp = site.getusersitepackages()
+        if usp:
+            site.addsitedir(usp)
+    except Exception:
+        pass
     try:
         import pymupdf as fitz
     except ImportError:
@@ -747,108 +752,34 @@ def _pdf_text_results(doc, max_types):
     return out
 
 
-def _ocr_files(images, timeout=300):
-    """그림 파일들 → [dict(w, h, words=[[x, y, w, h, 글자], …])]"""
-    td = os.path.dirname(images[0])
-    lst, out = os.path.join(td, "list.txt"), os.path.join(td, "ocr.jsonl")
-    with open(lst, "w", encoding="utf-8") as f:
-        f.write("\n".join(images) + "\n")
+def ocr_windows(images, timeout=300):
+    """PNG 바이트들 → [dict(w, h, words=[[x, y, w, h, 글자], …])] — Windows 내장 OCR(PowerShell). PC 판에서 씀"""
+    td = tempfile.mkdtemp(prefix="dov_ocr_")
     try:
-        subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", OCR_PS1, "-List", lst, "-Out", out],
-                       check=True, timeout=timeout, capture_output=True,
-                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    except (subprocess.SubprocessError, OSError) as e:
-        err = getattr(e, "stderr", b"") or b""
-        raise ValueError(f"그림 PDF 글자 인식(Windows OCR)에 실패했습니다: {err.decode('cp949', 'replace')[:300] or e}")
-    res = []
-    with open(out, encoding="utf-8-sig") as f:
-        for line in f:
-            if line.strip():
-                res.append(json.loads(line))
-    if res and res[0].get("error") == "no-ocr-language":
-        raise ValueError("이 PC 의 Windows 에 한국어 글자 인식(OCR)이 없어 그림 PDF 를 읽을 수 없습니다. 엑셀 설계개요를 넣어 주세요.")
-    return res
-
-
-def _render(fitz, page, zoom, rot, clip, path):
-    m = fitz.Matrix(zoom, zoom).prerotate(rot)
-    pix = page.get_pixmap(matrix=m, clip=clip, colorspace=fitz.csGRAY, alpha=False)
-    pix.save(path)
-    return pix.x, pix.y
-
-
-def _ocr_toks(res, ox, oy, zoom):
-    return [Tok((ox + x) / zoom, (oy + y) / zoom, (ox + x + w) / zoom, (oy + y + h) / zoom, s, None)
-            for x, y, w, h, s in res.get("words") or [] if str(s).strip()]
-
-
-def _pdf_ocr_results(fitz, doc, max_types, log):
-    pages = list(doc)[:12]
-    pri = [p for p in pages if re.search(r"설\s*계\s*개\s*요|면\s*적\s*표", p.get_text())]
-    pages = (pri or pages)[:4]
-    base = {}
-    for p in pages:                    # 쪽 회전(/Rotate)은 직접 돌려서 그림: 처음엔 보이는 방향, 못 찾으면 ±90°
-        base[p.number] = p.rotation % 360
-        if p.rotation:
-            p.set_rotation(0)
-    td = tempfile.mkdtemp(prefix="dov_")
-    try:
-        found = []
-        for turns in ((0,), (90, 270)):
-            jobs = []
-            for p in pages:
-                W = max(p.rect.width, p.rect.height)
-                z = min(3.0, 9000 / W)
-                for rot in ((base[p.number] + t) % 360 for t in turns):
-                    fn = os.path.join(td, f"a_{p.number}_{rot}.png")
-                    ox, oy = _render(fitz, p, z, rot, None, fn)
-                    jobs.append((p, rot, z, ox, oy, fn))
-            t = time.time()
-            res = _ocr_files([j[-1] for j in jobs])
-            log(f"OCR 1차 {len(jobs)}장 {time.time() - t:.1f}초")
-            for (p, rot, z, ox, oy, fn), r in zip(jobs, res):
-                for tab in _tables(_ocr_toks(r, ox, oy, z)):
-                    rows, tu, ts = _resolve([(1.0, tab)], ocr=True)
-                    fin = _finalize(rows, tu, ts, {}, max_types)
-                    found.append((_score(fin), fin, p, rot, z, tab))
-            if found:
-                break
-        if not found:
-            return []
-        found.sort(key=lambda x: -x[0])
-        sc, fin1, p, rot, z0, tabA = found[0]
-        meta = dict(source="PDF 그림(글자 인식)", where=f"{p.number + 1}쪽")
-        if fin1["units_ok"] and fin1["supply_ok"]:          # 한 번에 합계까지 맞으면 그대로
-            fin1.update(meta, reads=1, bonus=0)
-            return [fin1]
-        # 표 부분만 크게 다시 읽기(2번) — 좌표는 1차와 같은 기준(pt, 돌린 그림 기준)
-        h = tabA["h"]
-        top = tabA["hdr"][0] - 3 * h
-        bot = tabA["bottom"] + 3 * h
-        fr = fitz.Rect(-1e5, top, 1e5, bot) & (p.rect * fitz.Matrix(rot))
-        clip = (fr * ~fitz.Matrix(rot)) & p.rect
-        jobs = []
-        for i, z in enumerate((4.2, 5.5)):
-            z = min(z, 9500 / max(fr.width, fr.height))
-            fn = os.path.join(td, f"b_{i}.png")
-            ox, oy = _render(fitz, p, z, rot, clip, fn)
-            jobs.append((z, ox, oy, fn))
-        t = time.time()
-        res = _ocr_files([j[-1] for j in jobs])
-        log(f"OCR 2차 {len(jobs)}장 {time.time() - t:.1f}초")
-        passes = [(1.0, tabA)]
-        ha = tabA["hdr"]
-        for (z, ox, oy, fn), r, w in zip(jobs, res, (1.15, 1.3)):
-            tabs = _tables(_ocr_toks(r, ox, oy, z))
-            near = [t for t in tabs if abs(t["hdr"][0] - ha[0]) < 3 * h
-                    and abs(t["anchors"]["units"] - tabA["anchors"]["units"]) < 6 * h
-                    and abs(t["anchors"]["supply"] - tabA["anchors"]["supply"]) < 6 * h]
-            if near:
-                passes.append((w, max(near, key=lambda t: len(t["rows"]))))
-        rows, tu, ts = _resolve(passes, ocr=True)
-        res = _finalize(rows, tu, ts, dict(meta, reads=len(passes)), max_types)
-        res["bonus"] = 0
-        return [res] if res["types"] else []
+        paths = []
+        for i, png in enumerate(images):
+            p = os.path.join(td, f"{i}.png")
+            with open(p, "wb") as f:
+                f.write(png)
+            paths.append(p)
+        lst, out = os.path.join(td, "list.txt"), os.path.join(td, "ocr.jsonl")
+        with open(lst, "w", encoding="utf-8") as f:
+            f.write("\n".join(paths) + "\n")
+        try:
+            subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", OCR_PS1, "-List", lst, "-Out", out],
+                           check=True, timeout=timeout, capture_output=True,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        except (subprocess.SubprocessError, OSError) as e:
+            err = getattr(e, "stderr", b"") or b""
+            raise ValueError(f"그림 PDF 글자 인식(Windows OCR)에 실패했습니다: {err.decode('cp949', 'replace')[:300] or e}")
+        res = []
+        with open(out, encoding="utf-8-sig") as f:
+            for line in f:
+                if line.strip():
+                    res.append(json.loads(line))
+        if res and res[0].get("error") == "no-ocr-language":
+            raise ValueError("이 PC 의 Windows 에 한국어 글자 인식(OCR)이 없어 그림 PDF 를 읽을 수 없습니다. 엑셀 설계개요를 넣어 주세요.")
+        return res
     finally:
         for f in os.listdir(td):
             try:
@@ -861,8 +792,108 @@ def _pdf_ocr_results(fitz, doc, max_types, log):
             pass
 
 
+def _render(fitz, page, zoom, rot, clip):
+    """→ (x 오프셋, y 오프셋, PNG 바이트)"""
+    m = fitz.Matrix(zoom, zoom).prerotate(rot)
+    pix = page.get_pixmap(matrix=m, clip=clip, colorspace=fitz.csGRAY, alpha=False)
+    return pix.x, pix.y, pix.tobytes("png")
+
+
+def _ocr_toks(res, ox, oy, zoom):
+    return [Tok((ox + x) / zoom, (oy + y) / zoom, (ox + x + w) / zoom, (oy + y + h) / zoom, s, None)
+            for x, y, w, h, s in res.get("words") or [] if str(s).strip()]
+
+
+def _pdf_ocr_pipeline(fitz, doc, max_types, log):
+    """그림 PDF 읽기 — 제너레이터: OCR 할 PNG 바이트 목록을 yield 하고, 그 결과([dict(w,h,words)])를 send 로 받는다.
+    (PC 판은 Windows OCR, 웹판은 브라우저 Tesseract 가 사이에 끼어든다)"""
+    pages = list(doc)[:12]
+    pri = [p for p in pages if re.search(r"설\s*계\s*개\s*요|면\s*적\s*표", p.get_text())]
+    pages = (pri or pages)[:4]
+    base = {}
+    for p in pages:                    # 쪽 회전(/Rotate)은 직접 돌려서 그림: 처음엔 보이는 방향, 못 찾으면 ±90°
+        base[p.number] = p.rotation % 360
+        if p.rotation:
+            p.set_rotation(0)
+    found = []
+    for turns in ((0,), (90, 270)):
+        jobs = []
+        for p in pages:
+            W = max(p.rect.width, p.rect.height)
+            z = min(3.0, 9000 / W)
+            for rot in ((base[p.number] + t) % 360 for t in turns):
+                ox, oy, png = _render(fitz, p, z, rot, None)
+                jobs.append((p, rot, z, ox, oy, png))
+        t = time.time()
+        res = yield [j[-1] for j in jobs]
+        log(f"OCR 1차 {len(jobs)}장 {time.time() - t:.1f}초")
+        for (p, rot, z, ox, oy, png), r in zip(jobs, res):
+            for tab in _tables(_ocr_toks(r, ox, oy, z)):
+                rows, tu, ts = _resolve([(1.0, tab)], ocr=True)
+                fin = _finalize(rows, tu, ts, {}, max_types)
+                found.append((_score(fin), fin, p, rot, z, tab))
+        if found:
+            break
+    if not found:
+        return []
+    found.sort(key=lambda x: -x[0])
+    sc, fin1, p, rot, z0, tabA = found[0]
+    meta = dict(source="PDF 그림(글자 인식)", where=f"{p.number + 1}쪽")
+    if fin1["units_ok"] and fin1["supply_ok"]:          # 한 번에 합계까지 맞으면 그대로
+        fin1.update(meta, reads=1, bonus=0)
+        return [fin1]
+    # 표 부분만 크게 다시 읽기(2번) — 좌표는 1차와 같은 기준(pt, 돌린 그림 기준)
+    h = tabA["h"]
+    top = tabA["hdr"][0] - 3 * h
+    bot = tabA["bottom"] + 3 * h
+    fr = fitz.Rect(-1e5, top, 1e5, bot) & (p.rect * fitz.Matrix(rot))
+    clip = (fr * ~fitz.Matrix(rot)) & p.rect
+    jobs = []
+    for i, z in enumerate((4.2, 5.5)):
+        z = min(z, 9500 / max(fr.width, fr.height))
+        ox, oy, png = _render(fitz, p, z, rot, clip)
+        jobs.append((z, ox, oy, png))
+    t = time.time()
+    res = yield [j[-1] for j in jobs]
+    log(f"OCR 2차 {len(jobs)}장 {time.time() - t:.1f}초")
+    passes = [(1.0, tabA)]
+    ha = tabA["hdr"]
+    for (z, ox, oy, png), r, w in zip(jobs, res, (1.15, 1.3)):
+        tabs = _tables(_ocr_toks(r, ox, oy, z))
+        near = [t for t in tabs if abs(t["hdr"][0] - ha[0]) < 3 * h
+                and abs(t["anchors"]["units"] - tabA["anchors"]["units"]) < 6 * h
+                and abs(t["anchors"]["supply"] - tabA["anchors"]["supply"]) < 6 * h]
+        if near:
+            passes.append((w, max(near, key=lambda t: len(t["rows"]))))
+    rows, tu, ts = _resolve(passes, ocr=True)
+    res = _finalize(rows, tu, ts, dict(meta, reads=len(passes)), max_types)
+    res["bonus"] = 0
+    return [res] if res["types"] else []
+
+
+def _pdf_ocr_results(fitz, doc, max_types, log, ocr=None):
+    """제너레이터를 OCR 함수(ocr(PNG 목록) → 결과 목록)로 끝까지 돌린다"""
+    ocr = ocr or ocr_windows
+    gen = _pdf_ocr_pipeline(fitz, doc, max_types, log)
+    try:
+        req = next(gen)
+        while True:
+            req = gen.send(ocr(req))
+    except StopIteration as e:
+        return e.value or []
+
+
 # ───────────────────────────── 밖에서 부르는 것
-def read_types(path, max_types=20, ocr=True, log=None):
+def _best(cands, t0):
+    if not cands:
+        raise ValueError("설계개요에서 '세대수·공급면적' 표(평형별 면적표)를 찾지 못했습니다.")
+    best = max(cands, key=_score)
+    best.pop("bonus", None)
+    best["sec"] = round(time.time() - t0, 1)
+    return best
+
+
+def read_types(path, max_types=20, ocr=True, log=None, ocr_fn=None):
     """설계개요 파일 → 세대 구성. 못 찾으면 ValueError"""
     log = log or (lambda s: None)
     t0 = time.time()
@@ -874,15 +905,43 @@ def read_types(path, max_types=20, ocr=True, log=None):
         doc = fitz.open(path)
         cands = _pdf_text_results(doc, max_types)
         if not cands and ocr:
-            cands = _pdf_ocr_results(fitz, doc, max_types, log)
+            cands = _pdf_ocr_results(fitz, doc, max_types, log, ocr_fn)
     else:
         raise ValueError("설계개요는 엑셀(xlsx·xls) 또는 PDF 파일이어야 합니다.")
-    if not cands:
-        raise ValueError("설계개요에서 '세대수·공급면적' 표(평형별 면적표)를 찾지 못했습니다.")
-    best = max(cands, key=_score)
-    best.pop("bonus", None)
-    best["sec"] = round(time.time() - t0, 1)
-    return best
+    return _best(cands, t0)
+
+
+class TypesSession:
+    """웹판용 단계 실행: start() → ('done', 결과) 또는 ('ocr', [PNG…]); OCR 결과를 step(결과목록) 에 주면 다음 단계.
+    OCR 결과 = [dict(w, h, words=[[x, y, w, h, 글자], …])] (그림 순서대로)"""
+
+    def __init__(self, path, max_types=20, log=None):
+        self.path, self.max_types, self.log = path, max_types, (log or (lambda s: None))
+        self.t0 = time.time()
+        self.gen = None
+
+    def start(self):
+        ext = os.path.splitext(self.path)[1].lower()
+        if ext in (".xlsx", ".xlsm", ".xls"):
+            return "done", _best(_excel_results(self.path, self.max_types), self.t0)
+        if ext != ".pdf":
+            raise ValueError("설계개요는 엑셀(xlsx·xls) 또는 PDF 파일이어야 합니다.")
+        fitz = _fitz()
+        doc = fitz.open(self.path)
+        cands = _pdf_text_results(doc, self.max_types)
+        if cands:
+            return "done", _best(cands, self.t0)
+        self.gen = _pdf_ocr_pipeline(fitz, doc, self.max_types, self.log)
+        try:
+            return "ocr", next(self.gen)
+        except StopIteration as e:
+            return "done", _best(e.value or [], self.t0)
+
+    def step(self, results):
+        try:
+            return "ocr", self.gen.send(results)
+        except StopIteration as e:
+            return "done", _best(e.value or [], self.t0)
 
 
 def main():

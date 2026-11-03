@@ -98,8 +98,53 @@ def guess_kinds(fields, year):
     return out
 
 
+class _ModelView:
+    """xlcalc.Model 을 openpyxl 통합문서처럼 읽기(이름→값, 시트 셀 값). 웹판에서 양식을 다시 읽지 않으려고"""
+
+    def __init__(self, model):
+        self.m = model
+        self.sheetnames = model.sheetnames
+
+    def raw(self, sheet, r, c):
+        v = self.m.cells.get(sheet, {}).get((r, c))
+        if isinstance(v, tuple) and v and v[0] == "F":
+            return "=" + v[1]
+        return v
+
+    def by_name(self, name):
+        nr = self.m.name_ref(name)
+        if not nr:
+            return None
+        return self.raw(nr[0], nr[1], nr[2])
+
+    def max_row(self, sheet):
+        return self.m.maxrow.get(sheet, 0)
+
+
+def _reader(src):
+    """경로(openpyxl 로 읽음) 또는 xlcalc.Model → (이름값 함수, 셀값 함수, 시트이름, max_row 함수, 표시 이름)"""
+    if hasattr(src, "name_ref"):
+        mv = _ModelView(src)
+        return mv.by_name, mv.raw, mv.sheetnames, mv.max_row, getattr(src, "name", "template")
+    wb = openpyxl.load_workbook(src, data_only=False)
+
+    def by_name(name):
+        c = _cell(wb, name)
+        return c.value if c is not None else None
+
+    def raw(sheet, r, c):
+        return wb[sheet].cell(r, c).value
+    return by_name, raw, wb.sheetnames, (lambda s: wb[s].max_row), os.path.basename(src)
+
+
 def schema(template):
-    wb = openpyxl.load_workbook(template)
+    """현장입력 칸 목록(구역·칸·기본값). template = 양식 경로 또는 xlcalc.Model"""
+    by_name, raw, sheetnames, max_row, _ = _reader(template)
+
+    def resolve(v):
+        if isinstance(v, str) and v.startswith("=기준_"):
+            return by_name(v[1:])
+        return v
     sections = []
     cur = None
     for it in BT.INPUTS:
@@ -113,41 +158,39 @@ def schema(template):
                  options=opts.split(",") if opts else None, auto=is_def,
                  tags=FIELD_TAGS.get(key, "").split() or None, main=key in MAIN_FIELDS)
         if kind == "ym":
-            a, b = _cell(wb, f"입력_{key}연"), _cell(wb, f"입력_{key}월")
-            f["default"] = [a.value if a is not None else None, b.value if b is not None else None]
+            f["default"] = [by_name(f"입력_{key}연"), by_name(f"입력_{key}월")]
         else:
-            c = _cell(wb, f"입력_{key}")
-            v = c.value if c is not None else default
-            f["default"] = _jsonable(_resolve(wb, v))
+            v = by_name(f"입력_{key}")
+            f["default"] = _jsonable(resolve(v if v is not None else default))
         cur["fields"].append(f)
     return dict(sections=sections, ntypes=BT.NTYPES, kinds=[dict(key=k, label=l, help=h) for k, l, h in KIND_LABELS])
 
 
 def template_info(template):
-    wb = openpyxl.load_workbook(template, data_only=False)
-    ws = wb["기준단가"]
+    """기준안 파일·작성일·예산연도·기준단가 표. template = 양식 경로 또는 xlcalc.Model"""
+    by_name, raw, sheetnames, max_row, name = _reader(template)
+    ws = "기준단가"
     C = KP.COL
     params = []
     check = 0
-    for r in range(KP.FIRST_ROW, ws.max_row + 1):
-        key = ws.cell(r, C["name"]).value
+    for r in range(KP.FIRST_ROW, max_row(ws) + 1):
+        key = raw(ws, r, C["name"])
         if not key:
-            sec = ws.cell(r, 1).value
+            sec = raw(ws, r, 1)
             if isinstance(sec, str) and sec.startswith("■"):
                 params.append(dict(section=sec[1:].strip()))
             continue
-        res = ws.cell(r, C["result"]).value or ""
+        res = raw(ws, r, C["result"]) or ""
         if str(res).startswith("확인"):
             check += 1
-        params.append(dict(key=key, item=ws.cell(r, C["item"]).value, sub=ws.cell(r, C["sub"]).value,
-                           desc=ws.cell(r, C["desc"]).value, value=ws.cell(r, C["val"]).value,
-                           unit=ws.cell(r, C["unit"]).value, rule=ws.cell(r, C["rule"]).value,
-                           src=ws.cell(r, C["src_text"]).value, result=res))
-    written = ws["G2"].value
-    applied = ws["J3"].value
-    budget = next((n for n in wb.sheetnames if re.fullmatch(r"\d{2}년 예산", n)), None)
-    return dict(name=os.path.basename(template), path=template, kijun=ws["C2"].value,
-                written=_jsonable(written), year=ws["J2"].value, applied=_jsonable(applied),
+        params.append(dict(key=key, item=raw(ws, r, C["item"]), sub=raw(ws, r, C["sub"]),
+                           desc=raw(ws, r, C["desc"]), value=raw(ws, r, C["val"]),
+                           unit=raw(ws, r, C["unit"]), rule=raw(ws, r, C["rule"]),
+                           src=raw(ws, r, C["src_text"]), result=res))
+    budget = next((n for n in sheetnames if re.fullmatch(r"\d{2}년 예산", n)), None)
+    serial = lambda v: _jsonable(datetime.datetime(1899, 12, 30) + datetime.timedelta(days=v)) if isinstance(v, (int, float)) else _jsonable(v)
+    return dict(name=name, path=template if isinstance(template, str) else None, kijun=raw(ws, 2, 3),
+                written=serial(raw(ws, 2, 7)), year=raw(ws, 2, 10), applied=serial(raw(ws, 3, 10)),
                 count=sum(1 for p in params if "key" in p), check=check, params=params, budget=budget)
 
 
@@ -226,9 +269,18 @@ def _num(v):
         return v
 
 
-def write_inputs(template, out, data):
-    """입력값을 양식 복사본에 써서 out 으로 저장. 비운 자동 기본값 칸은 수식을 그대로 둔다."""
-    wb = openpyxl.load_workbook(template)
+def _col(n):
+    s = ""
+    while n:
+        n, r = divmod(n - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
+def input_items(names_ref, data):
+    """화면 입력값 → [(시트, 셀, 값)]. 양식 파일(openpyxl)과 수식 계산기(xlcalc)가 같이 쓴다.
+    names_ref(이름) → (시트, 셀) 또는 None. 비운 자동 기본값 칸·안 보낸 칸·비운 월별 칸은 목록에 없다(양식 수식 그대로)."""
+    items = []
     fields = data.get("fields") or {}
     for it in BT.INPUTS:
         if it[1] is None or it[1] == "TYPES":
@@ -241,50 +293,87 @@ def write_inputs(template, out, data):
         if kind == "ym":
             v = v or [None, None]
             for suffix, x in zip(("연", "월"), v):
-                c = _cell(wb, f"입력_{key}{suffix}")
-                if c is not None:
-                    c.value = _num(x)
+                ref = names_ref(f"입력_{key}{suffix}")
+                if ref:
+                    items.append((ref[0], ref[1], _num(x)))
             continue
-        c = _cell(wb, f"입력_{key}")
-        if c is None:
+        ref = names_ref(f"입력_{key}")
+        if not ref:
             continue
         if v in (None, ""):
             if not is_def:
-                c.value = None
+                items.append((ref[0], ref[1], None))
             continue
         if kind in ("int", "num", "pct", "month"):
-            c.value = _num(v)
+            val = _num(v)
         elif kind == "date":
             try:
-                c.value = datetime.datetime.strptime(str(v)[:10], "%Y-%m-%d")
+                val = datetime.datetime.strptime(str(v)[:10], "%Y-%m-%d")
             except ValueError:
-                c.value = None
+                val = None
         else:
-            c.value = str(v)
-    ws = wb["현장입력"]
-    t1, t2 = _type_rows(wb)
+            val = str(v)
+        items.append((ref[0], ref[1], val))
+    tot = names_ref("입력_총세대")
+    row = int(re.sub(r"\D", "", tot[1]))
+    t1, t2 = row - BT.NTYPES, row - 1
     types = data.get("types") or []
     for k, r in enumerate(range(t1, t2 + 1)):
         t = types[k] if k < len(types) else [None, None, None]
         t = (list(t) + [None, None, None])[:3]
-        ws[f"C{r}"].value = None if t[0] in (None, "") else str(t[0])
-        ws[f"D{r}"].value = _num(t[1])
-        ws[f"E{r}"].value = _num(t[2])
-    rs = wb["분양율,입주율"]
+        items.append(("현장입력", f"C{r}", None if t[0] in (None, "") else str(t[0])))
+        items.append(("현장입력", f"D{r}", _num(t[1])))
+        items.append(("현장입력", f"E{r}", _num(t[2])))
     m = data.get("monthly") or {}
     for key, row in (("분양", 8), ("입주", 13)):
         vals = m.get(key) or []
         for i in range(12):
             v = _num(vals[i]) if i < len(vals) else None
             if v is not None:
-                rs.cell(row, 9 + i).value = v          # 비우면 자동 곡선 수식 그대로
+                items.append(("분양율,입주율", f"{_col(9 + i)}{row}", v))      # 비우면 자동 곡선 수식 그대로
     for key, row in (("전년분양", 8), ("전년입주", 13)):
         vals = m.get(key) or []
         for i in range(3):
-            rs.cell(row, 6 + i).value = _num(vals[i]) if i < len(vals) else None
+            items.append(("분양율,입주율", f"{_col(6 + i)}{row}", _num(vals[i]) if i < len(vals) else None))
+    return items
+
+
+def write_inputs(template, out, data):
+    """입력값을 양식 복사본에 써서 out 으로 저장. 비운 자동 기본값 칸은 수식을 그대로 둔다."""
+    wb = openpyxl.load_workbook(template)
+    for sheet, cell, v in input_items(lambda n: _ref(wb, n), data):
+        wb[sheet][cell].value = v
     wb.active = wb.sheetnames.index("현장입력")
     wb.calculation.fullCalcOnLoad = True
     wb.save(out)
+
+
+def calc_model(model, data):
+    """xlcalc.Model(계산용 양식)에 입력값을 넣고 계산 → excel_calc 와 같은 결과 구조 (Excel 없이)"""
+    import xlcalc
+    model.reset()
+
+    def names_ref(name):
+        nr = model.name_ref(name)
+        return (nr[0], f"{_col(nr[2])}{nr[1]}") if nr else None
+    model.set_many(input_items(names_ref, data))
+    errors = []
+    for sheet, cells in model.cells.items():
+        for (r, c), raw in cells.items():
+            if isinstance(raw, tuple) and raw and raw[0] == "F":
+                v = model.cell(sheet, r, c)
+                if isinstance(v, xlcalc.XLError):
+                    errors.append(f"{sheet}!R{r}C{c} {v.code}")
+
+    def conv(v):
+        return v.code if isinstance(v, xlcalc.XLError) else v
+
+    def get2d(sheet, a1):
+        return [[conv(x) for x in row] for row in model.values(sheet, a1)]
+
+    def name_value(name):
+        return conv(model.name_value(name))
+    return read_results_from(model.sheetnames, get2d, name_value, lambda s: model.maxrow.get(s, 0), errors)
 
 
 def _v(x):
@@ -306,6 +395,7 @@ def excel_calc(xl, path):
 
 
 def read_results(wb):
+    """Excel(COM)로 연 계산 파일 → 결과. 값 읽기는 read_results_from 과 같은 규칙"""
     errors = []
     for ws in wb.Worksheets:
         ur = ws.UsedRange
@@ -318,10 +408,30 @@ def read_results(wb):
             for j, v in enumerate(row):
                 if isinstance(v, int) and v in XL_ERR:
                     errors.append(f"{ws.Name}!R{ur.Row + i}C{ur.Column + j} {XL_ERR[v]}")
-    bname = next(ws.Name for ws in wb.Worksheets if re.fullmatch(r"\d{2}년 예산", ws.Name))
-    b = wb.Worksheets(bname)
-    last = b.UsedRange.Row + b.UsedRange.Rows.Count
-    data = b.Range(f"A1:U{last}").Value
+
+    def get2d(sheet, a1):
+        v = wb.Worksheets(sheet).Range(a1).Value
+        if not isinstance(v, tuple):
+            v = ((v,),)
+        return [[_v(x) for x in row] for row in v]
+
+    def name_value(name):
+        try:
+            return _v(wb.Names(name).RefersToRange.Value)
+        except Exception:
+            return None
+
+    def last_row(sheet):
+        ur = wb.Worksheets(sheet).UsedRange
+        return ur.Row + ur.Rows.Count
+    return read_results_from([ws.Name for ws in wb.Worksheets], get2d, name_value, last_row, errors)
+
+
+def read_results_from(sheetnames, get2d, name_value, last_row, errors):
+    """get2d(시트, 'A1:U300') → 2차원 값(오류는 '#…' 글자), name_value(이름) → 값, last_row(시트) → 마지막 행"""
+    bname = next(n for n in sheetnames if re.fullmatch(r"\d{2}년 예산", n))
+    last = last_row(bname)
+    data = get2d(bname, f"A1:U{last}")
     stage = [_v(x) or "" for x in data[4][9:21]]
     groups, cur = [], None
     total = dict(total=0, months=[0] * 12)
@@ -347,29 +457,23 @@ def read_results(wb):
         if manual and not any(isinstance(m, (int, float)) and m for m in months) and not g:
             continue
         cur["rows"].append(dict(g=(g or "").strip(), total=_v(tot) or 0, months=months, manual=manual))
-    rs = wb.Worksheets("분양율,입주율")
+    rs = get2d("분양율,입주율", "E8:T16")          # 행 8~16, 열 E(5)~T(20)
 
     def rr(row, c0=9, n=12):
-        return [_v(x) for x in rs.Range(rs.Cells(row, c0), rs.Cells(row, c0 + n - 1)).Value[0]]
+        return [rs[row - 8][c0 - 5 + i] for i in range(n)]
     rates = dict(분양=rr(8), 분양누계=rr(9), 입주=rr(13), 미입주=rr(15), 분양율=rr(11), 입주율=rr(16),
                  전년분양=rr(8, 5, 4), 전년입주=rr(13, 5, 4))
-    ci = wb.Worksheets("현장입력")
-    checks = [c for c in (ci.Range(f"I{r}").Value for r in range(14, 23)) if c]
+    checks = [row[0] for row in get2d("현장입력", "I14:I22") if row[0]]
     # 보고서(회사 양식) 작성용: 계산 시트의 월별 행과 단가
     calc = {}
-    for row in wb.Worksheets("계산").Range("B1:V220").Value:
+    for row in get2d("계산", "B1:V220"):
         key = row[1]
         if key in ("대행세대", "조직세대", "MGM", "미입주", "분양", "입주", "k", "mk"):
             calc[key] = [_v(x) or 0 for x in row[8:20]]
-
-    def nm(name):
-        try:
-            return _v(wb.Names(name).RefersToRange.Value)
-        except Exception:
-            return None
-    price = dict(분양대행=nm("기준_분양대행"), 조직=nm("계산_조직단가"), MGM=nm("기준_MGM"), 공가=nm("기준_공가관리비"))
-    di = wb.Worksheets("대납이자")
-    rates_int = [_v(di.Range(a).Value) for a in ("B36", "C36", "B37", "C37")]
+    price = dict(분양대행=name_value("기준_분양대행"), 조직=name_value("계산_조직단가"), MGM=name_value("기준_MGM"),
+                 공가=name_value("기준_공가관리비"))
+    di = get2d("대납이자", "B36:C37")
+    rates_int = [di[0][0], di[0][1], di[1][0], di[1][1]]
     return dict(sheet=bname, year=int("20" + bname[:2]), stage=stage, groups=groups, total=total,
                 rates=rates, checks=checks, errors=errors[:30], nerrors=len(errors),
                 calc=calc, price=price, interest=rates_int)
