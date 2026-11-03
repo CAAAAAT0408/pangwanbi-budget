@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><title>ocr test</title>
+<pre id="o"></pre>
+<script type="module">
+const q = Object.fromEntries(new URL(location.href).searchParams);
+const T = (await import('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js'));
+const Tess = T.default || T;
+const langs = (q.lang || 'kor+eng').split('+');
+const t0 = performance.now();
+const w = await Tess.createWorker(langs, 1, {workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js', corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1'});
+const params = {tessedit_pageseg_mode: q.psm || '11', preserve_interword_spaces: '1'};
+if (q.wl) params.tessedit_char_whitelist = q.wl;
+await w.setParameters(params);
+const t1 = performance.now();
+const blob = await (await fetch(q.img)).blob();
+const r = await w.recognize(blob);
+const t2 = performance.now();
+const words = (r.data.words || []).map(x => [x.bbox.x0, x.bbox.y0, x.bbox.x1 - x.bbox.x0, x.bbox.y1 - x.bbox.y0, x.text, Math.round(x.confidence)]);
+window.__out = JSON.stringify({init: Math.round(t1 - t0), ocr: Math.round(t2 - t1), words});
+document.getElementById('o').textContent = window.__out.slice(0, 500);
+</script>
