@@ -1,13 +1,13 @@
 """xlcalc 검증: Excel 이 계산해 둔 작업 파일(work.xlsx)의 수식을 다시 계산해 캐시값과 전부 비교"""
 import sys, os, time, datetime, glob
-sys.path.insert(0, r"F:\1. 우미\1. 본사업무\★ 판관비 예산안\☆ 예산안 자동작성\tool")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # 이 저장소 폴더(외장하드 E: 또는 F:)
+sys.path.insert(0, os.path.join(ROOT, "tool"))
 sys.stdout.reconfigure(encoding="utf-8")
 import warnings
 warnings.filterwarnings("ignore")
 import openpyxl
 import xlcalc
 
-ROOT = r"F:\1. 우미\1. 본사업무\★ 판관비 예산안\☆ 예산안 자동작성"
 paths = sys.argv[1:] or sorted(glob.glob(os.path.join(ROOT, "app", "_jobs", "*", "work.xlsx")), key=os.path.getmtime)[-3:]
 for path in paths:
     t = time.time()

@@ -307,15 +307,25 @@ WORKER = None
 
 # ------------------------------------------------------------------ 저장 기록
 
+def fix_drive(p):
+    """외장하드가 PC 마다 다른 글자(E:/F:)로 잡혀도 저장한 현장 경로가 열리게, 없는 경로면 드라이브 글자를 이 폴더 기준으로 바꿔 본다."""
+    if p and not os.path.exists(p):
+        drive = os.path.splitdrive(ROOT)[0]
+        old, rest = os.path.splitdrive(p)
+        if drive and old and old != drive and os.path.exists(drive + rest):
+            return drive + rest
+    return p
+
+
 def sites_list():
     items = rjson(SITES, []) or []
     out = []
     seen = set()
     for it in sorted(items, key=lambda x: x.get('saved', ''), reverse=True):
-        p = it.get('path')
+        p = fix_drive(it.get('path'))
         if p and p not in seen and os.path.exists(p):
             seen.add(p)
-            out.append(it)
+            out.append(dict(it, path=p))
     return out[:200]
 
 
@@ -628,7 +638,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def api_load_path(self):
         self.need_local()
-        p = self.jbody().get('path') or ''
+        p = fix_drive(self.jbody().get('path') or '')
         if not os.path.exists(p):
             raise UserError('파일이 없습니다: ' + p)
         return self._loaded(p, os.path.basename(p))

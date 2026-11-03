@@ -1,11 +1,13 @@
 """A33 PDF 의 1차(전체 3x)·2차(표 부분 4.2x·5.5x) PNG 를 뽑아 둔다 (브라우저 OCR 실험용)"""
 import sys, os
-sys.path.insert(0, r"F:\1. 우미\1. 본사업무\★ 판관비 예산안\☆ 예산안 자동작성\tool")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # 이 저장소 폴더(외장하드 E: 또는 F:)
+DRIVE = os.path.splitdrive(ROOT)[0]                                   # 외장하드 드라이브 글자
+sys.path.insert(0, os.path.join(ROOT, "tool"))
 sys.stdout.reconfigure(encoding="utf-8")
 import design_overview as D
 
 out = sys.argv[1]
-pdf = r"F:\1. 우미\2. 수도권남부\14. 평택고덕 패키지형 공모사업\★ 2차(A33BL)\설계\03. 2차 변경승인 완료 (26.09.08)\03. 2차 변경승인 완료 (26.09.08)\02. 도면\1. 건축\01 표제부\(변경후) AG-014~015 설계개요, 동별개요.pdf"
+pdf = DRIVE + r"\1. 우미\2. 수도권남부\14. 평택고덕 패키지형 공모사업\★ 2차(A33BL)\설계\03. 2차 변경승인 완료 (26.09.08)\03. 2차 변경승인 완료 (26.09.08)\02. 도면\1. 건축\01 표제부\(변경후) AG-014~015 설계개요, 동별개요.pdf"
 fitz = D._fitz()
 doc = fitz.open(pdf)
 gen = D._pdf_ocr_pipeline(fitz, doc, 20, print)

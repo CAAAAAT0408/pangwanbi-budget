@@ -2,7 +2,8 @@
 import json, sys, os, time, urllib.request, uuid, glob
 sys.stdout.reconfigure(encoding="utf-8")
 B = "http://127.0.0.1:8792"
-ROOT = r"F:\1. 우미\1. 본사업무\★ 판관비 예산안\☆ 예산안 자동작성"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # 이 저장소 폴더(외장하드 E: 또는 F:)
+DRIVE = os.path.splitdrive(ROOT)[0]                                   # 외장하드 드라이브 글자 — 다른 현장 자료 경로에 씀
 
 
 def get(p):
@@ -31,8 +32,8 @@ sc = get("/api/schema?year=2027")
 mains = [f["key"] for s in sc["sections"] for f in s["fields"] if f.get("main")]
 print("schema ntypes", sc["ntypes"], "main 칸", len(mains), mains)
 
-for f in [r"F:\1. 우미\2. 수도권남부\14. 평택고덕 패키지형 공모사업\★ 1차(A36BL)\설계\250707_설계개요\[A-66BL] AG-014~015 설계개요,동별개요.xlsx",
-          r"F:\1. 우미\2. 수도권남부\14. 평택고덕 패키지형 공모사업\★ 2차(A33BL)\설계\03. 2차 변경승인 완료 (26.09.08)\03. 2차 변경승인 완료 (26.09.08)\02. 도면\1. 건축\01 표제부\(변경후) AG-014~015 설계개요, 동별개요.pdf"]:
+for f in [DRIVE + r"\1. 우미\2. 수도권남부\14. 평택고덕 패키지형 공모사업\★ 1차(A36BL)\설계\250707_설계개요\[A-66BL] AG-014~015 설계개요,동별개요.xlsx",
+          DRIVE + r"\1. 우미\2. 수도권남부\14. 평택고덕 패키지형 공모사업\★ 2차(A33BL)\설계\03. 2차 변경승인 완료 (26.09.08)\03. 2차 변경승인 완료 (26.09.08)\02. 도면\1. 건축\01 표제부\(변경후) AG-014~015 설계개요, 동별개요.pdf"]:
     t = time.time()
     j = upload("/api/types", f)
     print(f"/api/types {os.path.basename(f)} → {j['source']} {j['where']} {j['sec']}초(왕복 {time.time()-t:.1f}) 신뢰 {j['confidence']} "
@@ -52,7 +53,7 @@ for path in sorted(glob.glob(os.path.join(ROOT, "예시", "*.xlsx"))):
         ex1 = ld["data"]
 
 # 타입 14개(용마터널) 계산 + 회사 양식 보고서
-yj = upload("/api/types", r"F:\1. 우미\2. 수도권남부\18. 용마터널 공공주택 복합사업\설계\260804_설계개요.xlsx")
+yj = upload("/api/types", DRIVE + r"\1. 우미\2. 수도권남부\18. 용마터널 공공주택 복합사업\설계\260804_설계개요.xlsx")
 d = json.loads(json.dumps(ex1))
 d["types"] = [[t["name"], t["units"], t["supply"]] for t in yj["types"] if t["use"]]
 d["fields"]["현장명"] = "타입14개 시험"

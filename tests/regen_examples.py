@@ -2,7 +2,7 @@
 import sys, json, os, urllib.request, urllib.parse, shutil, glob
 sys.stdout.reconfigure(encoding="utf-8")
 B = "http://127.0.0.1:8792"
-ROOT = r"F:\1. 우미\1. 본사업무\★ 판관비 예산안\☆ 예산안 자동작성"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # 이 저장소 폴더(외장하드 E: 또는 F:)
 
 
 def get(p, raw=False):

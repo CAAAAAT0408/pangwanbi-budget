@@ -1,12 +1,12 @@
 """calc_model(xlcalc) 결과 ↔ 작업 폴더의 result.json(Excel COM 결과) 비교"""
 import sys, os, json, glob, time
-sys.path.insert(0, r"F:\1. 우미\1. 본사업무\★ 판관비 예산안\☆ 예산안 자동작성\tool")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # 이 저장소 폴더(외장하드 E: 또는 F:)
+sys.path.insert(0, os.path.join(ROOT, "tool"))
 sys.stdout.reconfigure(encoding="utf-8")
 import warnings
 warnings.filterwarnings("ignore")
 import xlcalc, site_io
 
-ROOT = r"F:\1. 우미\1. 본사업무\★ 판관비 예산안\☆ 예산안 자동작성"
 t = time.time()
 model = xlcalc.Model(os.path.join(ROOT, "판관비 예산안 자동작성 양식_2027.xlsx"))
 print(f"양식 읽기 {time.time() - t:.2f}초")

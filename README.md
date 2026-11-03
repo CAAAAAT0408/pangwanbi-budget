@@ -6,6 +6,7 @@ PM팀 현장별 「사업비(판관비) 예산편성」 엑셀을 현장 조건�
 - **웹판(설치 없이)**: https://caaaaat0408.github.io/pangwanbi-budget/ — 브라우저 안에서 계산·엑셀 작성(파일은 밖으로 안 나감)
 - 사용법·규칙·구조: [사용법.md](사용법.md)
 - PC 판 실행: `페이지 열기.bat` (이 PC 의 Excel 로 계산, 포트 8792) — 새 기준안·회사 양식 반영, PC 폴더 저장, 그림 미리보기는 PC 판에서
+- 웹판 올리기(관리자용): 엔진(`tool\`)·양식을 고친 뒤 `python tool\sync_web.py` → `깃허브 올리기.bat` (커밋·push, 처음엔 GitHub 로그인 창이 열림)
 - 필요한 것: Windows 10/11 + Excel + Python 3.13 (`openpyxl`, `pywin32`, `pymupdf`, `xlrd`), 그림 PDF 설계개요는 Windows 한국어 글자 인식(OCR) 언어 팩
 
 폴더: `app\`(화면 서버·화면) · `tool\`(양식 생성·기준안 해석·설계개요 읽기·회사 양식 작성) · `회사양식\`(경영기획팀 양식) · `예시\`

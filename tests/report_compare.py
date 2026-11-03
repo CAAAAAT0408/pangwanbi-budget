@@ -1,13 +1,13 @@
 """report_xl(xlsx XML 편집) 결과 ↔ report(Excel COM) 결과 비교: 같은 res/data 로 만든 두 파일의 값·수식·병합·행높이·숨김·테두리"""
 import sys, os, json, glob, time, re
-sys.path.insert(0, r"F:\1. 우미\1. 본사업무\★ 판관비 예산안\☆ 예산안 자동작성\tool")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # 이 저장소 폴더(외장하드 E: 또는 F:)
+sys.path.insert(0, os.path.join(ROOT, "tool"))
 sys.stdout.reconfigure(encoding="utf-8")
 import warnings
 warnings.filterwarnings("ignore")
 import openpyxl
 import report_xl
 
-ROOT = r"F:\1. 우미\1. 본사업무\★ 판관비 예산안\☆ 예산안 자동작성"
 jobs = sys.argv[1:] or ["bfa16d5fa55f"]
 form = open(glob.glob(os.path.join(ROOT, "회사양식", "*.xlsx"))[0], "rb").read()
 for jid in jobs:
