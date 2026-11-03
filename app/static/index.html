@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>판관비 예산안 자동작성</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--line:#d9dde3;--ink:#1d2330;--sub:#5b6474;--accent:#1f5fbf;--accent2:#e8f0fc;
+  --warn:#9a5b00;--warnbg:#fff6e5;--ok:#1b7f3b;--okbg:#e9f7ee;--err:#b42318;--errbg:#fdecea;--in:#fff8e1;--auto:#eef7e9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Malgun Gothic","맑은 고딕",sans-serif}
+header{background:#1d2b45;color:#fff;padding:14px 24px;display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+header h1{font-size:19px;margin:0}
+header span{color:#c7d1e3;font-size:13px}
+main{max-width:1400px;margin:0 auto;padding:18px 16px 80px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 18px;margin-bottom:16px}
+.card h2{font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card h2 .n{background:var(--accent);color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+input[type=text],input[type=number],input[type=date],select{font:inherit;border:1px solid var(--line);border-radius:5px;padding:4px 7px;background:#fff;color:var(--ink)}
+input[type=number]{text-align:right}
+button,.btn{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:6px;padding:6px 14px;cursor:pointer;display:inline-block}
+button.sub,.btn.sub{background:#fff;color:var(--accent)}
+button.small,.btn.small{padding:3px 9px;font-size:12px}
+button:disabled{opacity:.5;cursor:default}
+.btn input{display:none}
+.hint{color:var(--sub);font-size:12px}
+.hidden{display:none!important}
+.tag{display:inline-block;border-radius:10px;padding:0 9px;font-size:12px;background:#eef1f5;color:var(--sub)}
+.tag.ok{background:var(--okbg);color:var(--ok)}.tag.warn{background:var(--warnbg);color:var(--warn)}.tag.err{background:var(--errbg);color:var(--err)}
+.msg{border-radius:6px;padding:8px 12px;margin:10px 0 0}
+.msg.ok{background:var(--okbg);color:var(--ok)}.msg.warn{background:var(--warnbg);color:var(--warn);border:1px solid #f0d9a8}.msg.err{background:var(--errbg);color:var(--err)}
+.msg ul{margin:4px 0 0;padding-left:20px}
+.kinfo b{color:var(--ink)}
+/* 현장 구분 */
+.kinds{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:0 0 14px}
+.kind{border:2px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;background:#fafbfc;display:flex;gap:10px;align-items:flex-start;user-select:none}
+.kind input{width:18px;height:18px;margin-top:2px;accent-color:var(--accent)}
+.kind b{display:block;font-size:15px}
+.kind small{color:var(--sub)}
+.kind.on{border-color:var(--accent);background:var(--accent2)}
+.kindhint{background:var(--warnbg);color:var(--warn);border:1px solid #f0d9a8;border-radius:6px;padding:8px 12px;margin:0 0 12px}
+/* 입력 */
+details.sec{border:1px solid var(--line);border-radius:7px;margin:0 0 10px;background:#fbfcfd}
+details.sec>summary{cursor:pointer;padding:8px 12px;font-weight:bold;list-style:none;display:flex;gap:10px;align-items:center}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary:before{content:"▸";color:var(--sub);width:12px}
+details.sec[open]>summary:before{content:"▾"}
+details.sec>summary .tag{font-weight:normal}
+.checks{display:flex;flex-wrap:wrap;gap:6px 18px;padding:4px 14px 8px;border-bottom:1px dashed #e3e7ec;margin:0 0 4px}
+.checks .ttl{color:var(--sub);font-size:12px;width:100%}
+.chk{display:inline-flex;gap:6px;align-items:center;cursor:pointer;padding:2px 8px;border-radius:12px;background:#fff;border:1px solid var(--line)}
+.chk input{width:16px;height:16px;accent-color:var(--accent)}
+.chk.on{background:var(--accent2);border-color:#9db8e6}
+.chk[title]{cursor:help}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:6px 22px;padding:4px 14px 12px}
+.f{display:grid;grid-template-columns:190px 1fr;gap:2px 8px;align-items:center;padding:3px 0;border-bottom:1px dashed #eceff3}
+.f .in{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.f .in input,.f .in select{background:var(--in)}
+.f .in input.autoin{background:var(--auto)}
+.f .in input[type=text]{width:100%}
+.f .in input[type=number]{width:120px}
+.f .in input.yr{width:78px}
+.f .in .u{color:var(--sub);font-size:12px}
+.f .h{grid-column:2;color:var(--sub);font-size:11.5px;line-height:1.35}
+.f.changed label{color:var(--accent);font-weight:bold}
+table{border-collapse:collapse}
+th,td{border:1px solid var(--line);padding:3px 6px;text-align:center;vertical-align:middle}
+th{background:#eef1f5;font-weight:normal;color:var(--sub);font-size:12.5px}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#types td input{background:var(--in);width:100%}
+#types td input.t{width:90px}
+#types td input.n{width:80px}
+#types td input.a{width:96px}
+#types tr.xtra.hidden{display:none}
+#types tr.flag td{background:#fdecea}
+#types td.note{text-align:left;font-size:11.5px;max-width:260px;white-space:normal}
+details.more{margin:0 14px 10px;border:1px dashed var(--line);border-radius:6px;background:#fff}
+details.more>summary{cursor:pointer;padding:5px 10px;color:var(--sub);font-size:12.5px;list-style:none}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary:before{content:"▸ "}
+details.more[open]>summary:before{content:"▾ "}
+.fgrid:empty{display:none}
+#setup{margin-top:8px}
+.scroll{overflow:auto}
+#plan input{width:62px;padding:2px 4px;background:var(--in)}
+#plan input:placeholder-shown{background:var(--auto)}
+#plan .st{font-size:11px;color:#b42318}
+#plan tr.rate td{font-size:11px;color:var(--sub);background:#fafbfc;line-height:1.25;padding:2px 4px}
+#plan tr.rate td b{color:var(--accent)}
+/* 결과 */
+.stage{display:grid;grid-template-columns:repeat(12,1fr);gap:4px;margin:10px 0}
+.stage div{border-radius:5px;padding:4px 2px;text-align:center;font-size:12px;background:#f1f3f6;color:var(--sub)}
+.stage div b{display:block;color:var(--ink);font-size:12.5px}
+.stage div.s-사전{background:#fff1d6}.stage div.s-오픈{background:#ffd9cc}.stage div.s-D{background:#ffe9e0}
+.stage div.s-조직분양{background:#e8e1fa}.stage div.s-MH{background:#e3eefc}.stage div.s-사무실{background:#e6f4ea}
+.stage div.s-사전점검,.stage div.s-입주{background:#d9f2f0}
+#sum{width:100%;font-size:12.5px}
+#sum td,#sum th{padding:3px 5px}
+#sum tr.g{cursor:pointer}
+#sum tr.g:hover td{background:#f6f9ff}
+#sum tr.g td.it{text-align:left;font-weight:bold;white-space:nowrap}
+#sum tr.g td.it:before{content:"▸ ";color:var(--sub)}
+#sum tr.g.open td.it:before{content:"▾ "}
+#sum tr.d td{background:#fbfcfd;color:#333}
+#sum tr.d td.gtxt{text-align:left;font-size:12px;white-space:normal;min-width:260px}
+#sum tr.d.man td{background:#fff8e1}
+#sum tr.tot td{background:#fce4d6;font-weight:bold}
+#sum td.yr{background:#f0f6ff;font-weight:bold}
+#rates td{font-size:12px}
+.big{font-size:20px;font-weight:bold;color:#b42318}
+.tabs{display:flex;gap:6px;margin:14px 0 8px;border-bottom:1px solid var(--line)}
+.tabs button{border-radius:6px 6px 0 0;border-bottom:none;background:#eef1f5;color:var(--sub);border-color:var(--line)}
+.tabs button.on{background:#fff;color:var(--accent);border-color:var(--accent);font-weight:bold}
+.pv img{max-width:100%;border:1px solid var(--line);margin:0 0 12px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+#modal{position:fixed;inset:0;background:rgba(15,23,38,.55);display:flex;align-items:flex-start;justify-content:center;z-index:50;padding:24px 12px;overflow:auto}
+#modal .box{background:#fff;border-radius:8px;max-width:1300px;width:100%;padding:14px 16px}
+#modal .head{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+#modal .head b{font-size:15px;margin-right:auto}
+#ptab{font-size:12.5px;width:100%}
+#ptab td{text-align:left}
+#ptab td.v{text-align:right;font-weight:bold;white-space:nowrap}
+#ptab td:first-child,#ptab td:nth-child(4){white-space:nowrap}
+#ptab tr.sec td{background:#dfe9f7;font-weight:bold}
+#ptab td.src{color:var(--sub);font-size:11.5px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid #c7d1e3;border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (max-width:900px){.kinds{grid-template-columns:1fr 1fr}.fgrid{grid-template-columns:1fr}.f{grid-template-columns:1fr}.f .h{grid-column:1}.stage{grid-template-columns:repeat(6,1fr)}}
+</style>
+</head>
+<body>
+<header><h1>판관비 예산안 자동작성</h1><span>현장 조건 입력 → 기준안대로 계산 → 회사 「사업비 예산편성 양식」 그대로 엑셀</span>
+  <span class="hint" id="share" style="color:#c7d1e3"></span></header>
+<main>
+
+<section class="card" id="c1">
+  <h2><span class="n">1</span>기준안 · 양식</h2>
+  <div class="row">
+    <label>예산연도 <select id="tpl"></select></label>
+    <span class="kinfo" id="kinfo"></span>
+  </div>
+  <details class="sec" id="setup"><summary>기준안·양식 설정 <span class="tag" id="setupTag">기준단가 보기 · 새 기준안 반영 · 회사 양식 바꾸기</span></summary>
+    <div style="padding:4px 12px 10px">
+      <div class="row"><span class="kinfo" id="finfo"></span></div>
+      <div class="row" style="margin-top:8px">
+        <button class="sub small" id="bParams">기준단가 보기</button>
+        <label class="btn sub small">새 기준안 반영…<input type="file" id="fKijun" accept=".xlsx"></label>
+        <label class="btn sub small">회사 양식 바꾸기…<input type="file" id="fForm" accept=".xlsx"></label>
+        <button class="sub small local" id="bTpl">계산용 양식 열기</button>
+        <button class="sub small local" id="bTool">도구 폴더</button>
+      </div>
+      <div class="hint" style="margin-top:6px">새 「PM팀 판관비 예산기준(안)」 → 단가를 읽어 새 연도로 계산 · 경영기획팀이 새 「사업비 예산편성 양식」을 주면 "회사 양식 바꾸기"로 넣으세요(결과물이 그 양식 그대로 나옵니다).</div>
+    </div>
+  </details>
+  <div id="kres"></div>
+</section>
+
+<section class="card" id="c2">
+  <h2><span class="n">2</span>현장 입력 <span class="hint">꼭 필요한 칸만 보입니다 — 나머지(수량·대수·기간 등)는 각 구역의 '세부 조정'에 기준안 기본값으로 접혀 있음 · 체크 = 반영 항목</span></h2>
+  <div class="row" style="margin-bottom:12px">
+    <button class="sub small" id="bNew">새 현장</button>
+    <span class="local">저장한 현장 <select id="recent" style="max-width:420px"><option value="">— 고르세요 —</option></select>
+      <button class="sub small" id="bLoad">불러오기</button></span>
+    <label class="btn sub small">엑셀 파일에서 불러오기<input type="file" id="fLoad" accept=".xlsx"></label>
+    <span class="hint" id="loadmsg"></span>
+  </div>
+  <div><b>현장 구분</b> <span class="hint">이 현장에 올해 해당하는 것을 모두 고르세요 — 고른 것에 맞는 칸만 보입니다</span></div>
+  <div class="kinds" id="kinds" style="margin-top:6px"></div>
+  <div class="kindhint" id="kindhint">먼저 위에서 현장 구분(신규분양 · 잔여분양 · 입주 · 분양사무실)을 고르세요.</div>
+  <div id="form"></div>
+  <details class="sec" open id="planSec"><summary>9. 월별 분양·입주 세대 <span class="tag">비워 두면 자동 곡선 — 계산하면 연한 글씨로 자동값이 보입니다</span></summary>
+    <div class="scroll" style="padding:4px 14px 12px"><table id="plan"></table></div>
+  </details>
+</section>
+
+<section class="card" id="c3">
+  <h2><span class="n">3</span>계산 결과
+    <button id="bCalc">계산하기</button>
+    <label class="hint"><input type="checkbox" id="auto" checked> 입력하면 바로 계산</label>
+    <span id="cstat" class="hint"></span></h2>
+  <div id="checks"></div>
+  <div id="resbody" class="hidden">
+    <div class="row"><span>연간 예산 합계</span> <span class="big" id="tot"></span><span class="hint">천원</span></div>
+    <div class="stage" id="stage"></div>
+    <div class="tabs"><button class="on" data-t="sumtab">항목별 요약</button><button data-t="pvtab">회사 양식 미리보기 (예산안 보고서 · 27년 예산)</button></div>
+    <div id="sumtab">
+      <div class="row" style="margin-bottom:6px"><span class="hint">항목을 누르면 산출근거가 펼쳐집니다</span><button class="sub small" id="bExpand">모두 펼치기</button></div>
+      <div class="scroll"><table id="sum"></table></div>
+      <div class="scroll" style="margin-top:12px"><table id="rates"></table></div>
+    </div>
+    <div id="pvtab" class="hidden">
+      <div class="row"><button class="small" id="bPv">회사 양식으로 만들어 보기</button><span class="hint" id="pvmsg">회사 「사업비 예산편성 양식」에 채운 결과를 그림으로 보여 줍니다(10초 안팎).</span></div>
+      <div class="pv" id="pv" style="margin-top:10px"></div>
+    </div>
+  </div>
+</section>
+
+<section class="card" id="c4">
+  <h2><span class="n">4</span>엑셀 저장 <span class="hint">회사 「사업비 예산편성 양식」 그대로 저장합니다(기본정보·예산안 보고서·NN년 예산·분양율·분양대행·공가·대납이자)</span></h2>
+  <div class="row local">
+    <label>위치 <span class="hint" id="base"></span>
+      <select id="sub"><option>신규분양</option><option>기공급</option><option>입주</option><option value="">(바로 아래)</option></select>
+      <span class="hint">\ 현장명 \</span></label>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <label>파일 이름 <input type="text" id="fname" size="62"></label>
+    <button class="local" id="bSave">이 PC 에 저장</button>
+    <button class="sub" id="bDown">내려받기</button>
+    <a href="#" class="hint" id="bDownCalc">계산 근거 파일(자동작성 양식) 내려받기</a>
+  </div>
+  <div id="smsg"></div>
+</section>
+
+</main>
+
+<div id="modal" class="hidden"><div class="box">
+  <div class="head"><b id="mtitle">기준단가</b><button class="sub small local" id="mTpl">엑셀에서 열기</button><button class="small" id="mclose">닫기</button></div>
+  <div class="scroll"><table id="ptab"></table></div>
+</div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const S = {info: null, schema: null, year: null, job: null, res: null, timer: null, busy: false, again: false, local: false, kinds: []};
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const k = v => (v === null || v === undefined || v === '' || isNaN(v) || Math.abs(v) < 500) ? '' : Math.round(v / 1000).toLocaleString();
+const n0 = v => (v === null || v === undefined || v === '' || isNaN(v) || v == 0) ? '' : Number(v).toLocaleString();
+const fmtv = v => (v === null || v === undefined) ? '' : (typeof v === 'number' ? v.toLocaleString(undefined, {maximumFractionDigits: 3}) : String(v));
+
+async function api(path, opt = {}) {
+  const r = await fetch(path, opt);
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error('서버 응답을 읽지 못했습니다 (' + r.status + ')'); }
+  if (!j.ok && !j.exists) throw new Error(j.error || '오류');
+  return j;
+}
+const post = (path, obj) => api(path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(obj)});
+const upload = (path, file, extra = {}) => {
+  const fd = new FormData();
+  fd.append('file', file, file.name);
+  for (const [a, b] of Object.entries(extra)) fd.append(a, b);
+  return api(path, {method: 'POST', body: fd});
+};
+
+// ───────────── 1. 기준안 · 양식
+async function loadInfo(year) {
+  const j = await api('/api/info' + (year ? '?year=' + year : ''));
+  S.info = j; S.local = j.local;
+  $$('.local').forEach(e => e.classList.toggle('hidden', !j.local));
+  if (j.share_url) $('#share').textContent = '팀원 주소: ' + j.share_url;
+  $('#tpl').innerHTML = j.templates.map(t => `<option value="${t.year}">${t.year}년 예산</option>`).join('');
+  const t = j.template || {};
+  S.year = t.year;
+  $('#tpl').value = String(t.year || '');
+  $('#kinfo').innerHTML = t.year ? `기준안 <b>${esc(t.kijun || '-')}</b> (작성일 ${esc(t.written || '-')}) · 단가 ${t.count}개`
+    + (t.check ? ` · <span class="tag warn">확인 필요 ${t.check}개</span>` : ' · <span class="tag ok">확인 필요 없음</span>') : '계산용 양식이 없습니다';
+  const f = j.form;
+  $('#finfo').innerHTML = f ? `회사 양식 <b>${esc(f.name)}</b>` + (f.year && f.year !== S.year ? ` <span class="hint">(${f.year}년 양식 → 머리글·시트 이름을 ${S.year}년으로 바꿔 씀)</span>` : '')
+    : '<span class="tag err">회사 양식이 없습니다 — "회사 양식 바꾸기"로 넣어 주세요</span>';
+  const st = $('#setupTag');
+  if (!f) { st.className = 'tag err'; st.textContent = '회사 양식이 없습니다 — 열어서 넣어 주세요'; $('#setup').open = true; }
+  else { st.className = 'tag'; st.textContent = `회사 양식 ${f.name} · 기준단가 보기 · 새 기준안 반영`; }
+  $('#base').textContent = j.budget_root + '\\★ ' + (t.year || '') + ' 예산안 \\';
+  const y2 = String(S.year || '').slice(2);
+  $$('.tabs button')[1].textContent = `회사 양식 미리보기 (예산안 보고서 · ${y2}년 예산)`;
+}
+
+async function showParams() {
+  const j = await api('/api/params?year=' + S.year);
+  $('#mtitle').textContent = `기준단가 — ${j.year}년 예산 (기준안: ${j.kijun || '-'}, 작성일 ${j.written || '-'})`;
+  let h = '<tr><th>항목</th><th>기준 내용</th><th>값</th><th>단위</th><th>자동작성 적용 방식</th><th>기준안 원문</th><th>반영 결과</th></tr>';
+  for (const p of j.params) {
+    if (p.section) { h += `<tr class="sec"><td colspan="7">${esc(p.section)}</td></tr>`; continue; }
+    const v = typeof p.value === 'number' ? p.value.toLocaleString(undefined, {maximumFractionDigits: 3}) : esc(p.value);
+    const rc = String(p.result || '').startsWith('확인') ? 'err' : (String(p.result || '').startsWith('변경') ? 'ok' : '');
+    h += `<tr><td>${esc(p.item)}</td><td>${esc(p.desc)}</td><td class="v">${v}</td><td>${esc(p.unit)}</td><td class="hint">${esc(p.rule)}</td>`
+       + `<td class="src">${esc(p.src)}</td><td class="${rc}">${esc(p.result)}</td></tr>`;
+  }
+  $('#ptab').innerHTML = h;
+  $('#modal').classList.remove('hidden');
+}
+
+async function applyKijun(file) {
+  $('#kres').innerHTML = '<div class="msg warn"><span class="spin"></span> 기준안을 읽는 중…</div>';
+  try {
+    const j = await upload('/api/kijun', file, {year: S.year || ''});
+    const ch = j.report.filter(x => x.kind === '변경' || x.kind === '세목');
+    const ck = j.report.filter(x => x.kind === '확인');
+    let h = `<div class="msg ${ck.length || j.unused.length ? 'warn' : 'ok'}"><b>${esc(file.name)}</b> (작성일 ${esc(j.written || '?')}) → `
+      + `<b>${j.year}년 예산</b> 계산용 양식 저장 · 바뀐 값 ${ch.length}개 · 같은 값 ${j.same}개 · 확인 필요 ${ck.length}개 · 읽지 않은 줄 ${j.unused.length}개`
+      + (j.backup ? ` · 이전 파일 백업 ${esc(j.backup)}` : '');
+    if (ch.length) h += '<ul>' + ch.map(x => `<li>바뀜: ${esc(x.desc)} — ${esc(fmtv(x.old))} → <b>${esc(fmtv(x.new))}</b></li>`).join('') + '</ul>';
+    if (ck.length) h += '<ul>' + ck.map(x => `<li class="err">확인 필요: ${esc(x.desc)} — ${esc(x.why)} (기존 ${esc(fmtv(x.old))} 유지${x.new != null ? ', 읽은 값 ' + esc(fmtv(x.new)) : ''})</li>`).join('') + '</ul>';
+    if (j.unused.length) h += '<div>기준안에는 있는데 단가로 읽지 않은 줄 (새 항목이면 엑셀에서 직접 넣거나 도구 수정 필요):</div><ul>'
+      + j.unused.map(x => `<li>${x.row}행 ${esc(x.item)}: ${esc(x.text)}</li>`).join('') + '</ul>';
+    $('#kres').innerHTML = h + '</div>';
+    await loadInfo(j.year);
+    await loadSchema(true);
+  } catch (e) {
+    $('#kres').innerHTML = `<div class="msg err">${esc(e.message)}</div>`;
+  }
+}
+
+async function changeForm(file) {
+  $('#kres').innerHTML = '<div class="msg warn"><span class="spin"></span> 회사 양식을 확인하는 중…</div>';
+  try {
+    const j = await upload('/api/form', file);
+    $('#kres').innerHTML = `<div class="msg ok">회사 양식을 <b>${esc(j.form.name)}</b> 로 바꿨습니다. 이제 결과물이 이 양식 그대로 나옵니다.</div>`;
+    await loadInfo(S.year);
+    S.job && invalidatePreview();
+  } catch (e) { $('#kres').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
+
+// ───────────── 2. 입력 양식
+async function loadSchema(keep) {
+  const prev = keep ? collect() : null;
+  const j = await api('/api/schema?year=' + S.year);
+  S.schema = j;
+  renderForm(j);
+  if (prev) setData(prev);
+  else if (!restoreDraft()) setDefaults();
+  updateTypes();
+  applyKinds();
+  markChanged();
+}
+
+function fieldHtml(f) {
+  const id = 'f_' + f.key;
+  const tags = (f.tags || []).join(' ');
+  if (f.kind === 'yn')            // 체크 = Y
+    return `<label class="chk" data-key="${f.key}" data-tags="${tags}" ${f.help ? `title="${esc(f.help)}"` : ''}><input type="checkbox" id="${id}"> ${esc(f.label)}</label>`;
+  let inp = '';
+  const opt = (vals, blank) => (blank ? '<option value=""></option>' : '') + vals.map(v => `<option>${esc(v)}</option>`).join('');
+  switch (f.kind) {
+    case 'text': inp = `<input type="text" id="${id}">`; break;
+    case 'date': inp = `<input type="date" id="${id}">`; break;
+    case 'list': inp = `<select id="${id}">${opt(f.options, true)}</select>`; break;
+    case 'month': inp = `<select id="${id}">${opt([...Array(12)].map((_, i) => i + 1), true)}</select>`; break;
+    case 'ym': inp = `<input type="number" class="yr" id="${id}_y" placeholder="연">년 <select id="${id}_m">${opt([...Array(12)].map((_, i) => i + 1), true)}</select>월`; break;
+    case 'pct': inp = `<input type="number" step="any" id="${id}"><span class="u">%</span>`; break;
+    default: inp = `<input type="number" step="any" id="${id}" class="${f.auto ? 'autoin' : ''}">`;
+  }
+  const unit = (f.unit && f.kind !== 'ym' && f.kind !== 'pct') ? `<span class="u">${esc(f.unit)}</span>` : '';
+  return `<div class="f" data-key="${f.key}" data-tags="${tags}"><label for="${id}">${esc(f.label)}</label><div class="in">${inp}${unit}</div>`
+       + (f.help ? `<div class="h">${esc(f.help)}</div>` : '') + '</div>';
+}
+
+function renderForm(sc) {
+  $('#kinds').innerHTML = sc.kinds.map(x => `<label class="kind" data-k="${x.key}"><input type="checkbox" value="${x.key}"><span><b>${esc(x.label)}</b><small>${esc(x.help)}</small></span></label>`).join('');
+  $$('#kinds input').forEach(e => e.onchange = () => { S.kinds = $$('#kinds input').filter(x => x.checked).map(x => x.value); applyKinds(); scheduleCalc(); });
+  let h = '';
+  sc.sections.forEach((s, i) => {
+    h += `<details class="sec"${i < 3 ? ' open' : ''} data-i="${i}"><summary>${esc(s.title)} <span class="tag cnt"></span></summary>`;
+    if (s.types) {
+      h += '<div class="row" style="padding:6px 14px 4px"><label class="btn sub small">설계개요에서 읽기… (PDF·엑셀)<input type="file" id="fOverview" accept=".pdf,.xlsx,.xls,.xlsm"></label>'
+         + '<span class="hint">설계사무소 설계개요의 평형별 면적표에서 타입·세대수·공급면적을 채웁니다 (그림 PDF 는 글자 인식, 10초 안팎)</span></div>'
+         + '<div id="ovmsg" style="padding:0 14px"></div>'
+         + '<div style="padding:4px 14px 6px"><table id="types"><tr><th>#</th><th>타입</th><th>세대수</th><th>공급면적(㎡)</th><th>공급평(자동)</th><th>비고</th></tr>';
+      for (let r = 0; r < sc.ntypes; r++)
+        h += `<tr class="${r >= 10 ? 'xtra hidden' : ''}"><td class="hint">${r + 1}</td><td><input type="text" class="t"></td><td><input type="number" class="n"></td>`
+           + `<td><input type="number" step="any" class="a"></td><td class="num p"></td><td class="hint note"></td></tr>`;
+      h += `<tr><th colspan="2">합계</th><th class="num" id="ttot"></th><th colspan="3" class="hint" style="text-align:left">공급면적은 입주 현장 공가세대관리비(평당)에만 씀 · <a href="#" id="moreTypes">줄 더 보기 (최대 ${sc.ntypes})</a></th></tr></table></div>`;
+    }
+    const yn = s.fields.filter(f => f.kind === 'yn'), rest = s.fields.filter(f => f.kind !== 'yn');
+    const main = rest.filter(f => f.main), more = rest.filter(f => !f.main);
+    if (yn.length) h += `<div class="checks"><span class="ttl">반영 항목 (체크한 것만 예산에 넣음)</span>${yn.map(fieldHtml).join('')}</div>`;
+    h += '<div class="fgrid">' + main.map(fieldHtml).join('') + '</div>';
+    if (more.length) h += `<details class="more" data-i="${i}"><summary>세부 조정 <span class="tag dcnt"></span></summary><div class="fgrid">${more.map(fieldHtml).join('')}</div></details>`;
+    h += '</details>';
+  });
+  $('#form').innerHTML = h;
+  let p = '<tr><th rowspan="2">구분</th><th colspan="3" id="pyPrev">전년</th><th colspan="12" id="pyCur">올해</th></tr><tr>';
+  p += ['10월', '11월', '12월'].map(m => `<th>${m}</th>`).join('');
+  for (let i = 1; i <= 12; i++) p += `<th>${i}월<br><span class="st" id="st${i}"></span></th>`;
+  p += '</tr>';
+  for (const [key, label, tag] of [['분양', '분양세대', 'sale'], ['입주', '입주세대', 'movein']]) {
+    p += `<tr data-row="${tag}"><td>${label}</td>`;
+    for (let i = 0; i < 3; i++) p += `<td><input type="number" data-m="전년${key}" data-i="${i}"></td>`;
+    for (let i = 0; i < 12; i++) p += `<td><input type="number" data-m="${key}" data-i="${i}"></td>`;
+    p += '</tr>';
+    p += `<tr class="rate" data-row="${tag}"><td>누계 · ${key}률</td>`;         // 입력하면 바로 누계·비율 표시
+    for (let i = 0; i < 15; i++) p += `<td data-r="${key}" data-i="${i}"></td>`;
+    p += '</tr>';
+  }
+  $('#plan').innerHTML = p;
+}
+
+function updatePlanRates() {     // 9번 표: (전년 누계 + 입력 또는 자동값) ÷ 총세대 — 입력하는 대로 다시 계산
+  if (!S.schema) return;
+  const total = $$('#types tr').reduce((a, tr) => { const n = tr.querySelector('.n'); return a + (n ? +(n.value || 0) : 0); }, 0);
+  for (const key of ['분양', '입주']) {
+    const f = fieldsOf().find(x => x.key === '전년' + key);
+    let cum = f ? +(getField(f) || 0) : 0;
+    const cells = $$(`#plan td[data-r="${key}"]`);
+    const inputs = [...$$(`#plan input[data-m="전년${key}"]`), ...$$(`#plan input[data-m="${key}"]`)];
+    inputs.forEach((inp, i) => {
+      const v = inp.value !== '' ? +inp.value : +(inp.placeholder || 0);
+      cum += v;
+      const c = cells[i];
+      if (!c) return;
+      c.innerHTML = (!total || (!cum && !v)) ? '' : `${cum.toLocaleString()}<br><b>${(cum / total * 100).toFixed(1)}%</b>`;
+    });
+  }
+}
+
+function visibleField(f) {
+  if (!f.tags || !f.tags.length) return true;
+  return f.tags.some(t => S.kinds.includes(t));
+}
+
+function applyKinds() {
+  if (!S.schema) return;
+  $$('#kinds input').forEach(e => { e.checked = S.kinds.includes(e.value); e.closest('.kind').classList.toggle('on', e.checked); });
+  const none = !S.kinds.length;
+  $('#kindhint').classList.toggle('hidden', !none);
+  S.schema.sections.forEach((s, i) => {
+    let vis = 0;
+    for (const f of s.fields) {
+      const el = $(`[data-key="${f.key}"]`);
+      const v = visibleField(f);
+      if (el) el.classList.toggle('hidden', !v);
+      if (v) vis++;
+    }
+    const det = $(`details[data-i="${i}"]`);
+    if (det) det.classList.toggle('hidden', !(i <= 1 || (!none && vis > 0)));   // 1·2번(기본·세대)은 늘 보임
+    if (det) {
+      const ck = det.querySelector('.checks');
+      if (ck) ck.classList.toggle('hidden', !s.fields.some(f => f.kind === 'yn' && visibleField(f)));
+      const mo = det.querySelector('details.more');
+      if (mo) mo.classList.toggle('hidden', !s.fields.some(f => !f.main && f.kind !== 'yn' && visibleField(f)));
+    }
+  });
+  const sale = S.kinds.includes('new') || S.kinds.includes('remain'), mv = S.kinds.includes('movein');
+  $('#planSec').classList.toggle('hidden', !(sale || mv));
+  $$('#plan tr[data-row="sale"]').forEach(e => e.classList.toggle('hidden', !sale));
+  $$('#plan tr[data-row="movein"]').forEach(e => e.classList.toggle('hidden', !mv));
+  $$('.chk').forEach(c => c.classList.toggle('on', c.querySelector('input').checked));
+}
+
+function fieldsOf() { return S.schema.sections.flatMap(s => s.fields); }
+
+function setField(f, v) {
+  const id = 'f_' + f.key;
+  if (f.kind === 'ym') {
+    const [y, m] = v || [null, null];
+    $('#' + id + '_y').value = y ?? '';
+    $('#' + id + '_m').value = m ?? '';
+    return;
+  }
+  const el = $('#' + id);
+  if (!el) return;
+  if (f.kind === 'yn') { el.checked = v === 'Y'; el.closest('.chk').classList.toggle('on', el.checked); return; }
+  if (f.auto) { el.value = ''; el.placeholder = '자동 ' + (f.default ?? ''); if (v !== null && v !== undefined && v !== f.default) el.value = v; return; }
+  if (f.kind === 'pct') el.value = (v === null || v === undefined || v === '') ? '' : +(v * 100).toFixed(4);
+  else el.value = v ?? '';
+}
+
+function getField(f) {
+  const id = 'f_' + f.key;
+  if (f.kind === 'ym') {
+    const y = $('#' + id + '_y').value, m = $('#' + id + '_m').value;
+    return [y === '' ? null : +y, m === '' ? null : +m];
+  }
+  const el = $('#' + id);
+  if (f.kind === 'yn') return el.checked ? 'Y' : 'N';
+  const v = el.value;
+  if (v === '') return null;
+  if (f.kind === 'pct') return +v / 100;
+  if (['int', 'num', 'month'].includes(f.kind)) return +v;
+  return v;
+}
+
+function setDefaults() {
+  for (const f of fieldsOf()) setField(f, f.default);
+  $$('#types input').forEach(e => e.value = '');
+  $$('#types tr').forEach(tr => { tr.classList.remove('flag'); if (tr.classList.contains('xtra')) tr.classList.add('hidden'); const n = tr.querySelector('.note'); if (n) n.textContent = ''; });
+  if ($('#ovmsg')) $('#ovmsg').innerHTML = '';
+  $$('#plan input').forEach(e => e.value = '');
+  $$('details.more').forEach(d => d.open = false);
+  S.kinds = [];
+}
+
+function showTypeRows() {     // 11줄 이후는 값이 있을 때만 보임
+  $$('#types tr.xtra').forEach(tr => { if (tr.querySelector('.t').value !== '' || tr.querySelector('.n').value !== '') tr.classList.remove('hidden'); });
+}
+
+function fieldChanged(f) {
+  const d = f.auto ? null : f.default;
+  return JSON.stringify(getField(f) ?? null) !== JSON.stringify(f.kind === 'ym' ? (d || [null, null]) : (d ?? null));
+}
+
+function openChangedDetails() {   // 불러온 값이 기본값과 다른 세부 칸이 있으면 그 구역의 '세부 조정'을 펼쳐 보여 줌
+  if (!S.schema) return;
+  S.schema.sections.forEach((s, i) => {
+    const det = $(`details.more[data-i="${i}"]`);
+    if (det && s.fields.some(f => !f.main && f.kind !== 'yn' && visibleField(f) && fieldChanged(f))) det.open = true;
+  });
+}
+
+function collect() {
+  if (!S.schema) return null;
+  const fields = {};
+  for (const f of fieldsOf()) {
+    let v = getField(f);
+    if (!visibleField(f)) {          // 고르지 않은 현장 구분의 칸: 날짜는 비우고, 반영 항목은 끔
+      if (f.kind === 'ym') v = [null, null];
+      else if (f.kind === 'yn') v = 'N';
+    }
+    fields[f.key] = v;
+  }
+  const types = [];
+  $$('#types tr').forEach(tr => {
+    const t = tr.querySelector('.t');
+    if (!t) return;
+    const n = tr.querySelector('.n').value, a = tr.querySelector('.a').value;
+    if (t.value !== '' || n !== '') types.push([t.value, n === '' ? null : +n, a === '' ? null : +a]);
+  });
+  const monthly = {분양: Array(12).fill(null), 입주: Array(12).fill(null), 전년분양: [null, null, null], 전년입주: [null, null, null]};
+  $$('#plan input').forEach(e => { if (e.value !== '' && !e.closest('tr').classList.contains('hidden')) monthly[e.dataset.m][+e.dataset.i] = +e.value; });
+  return {fields, types, monthly, kinds: [...S.kinds]};
+}
+
+function setData(d) {
+  if (!d) return;
+  if (d.kinds) S.kinds = [...d.kinds];
+  for (const f of fieldsOf()) {
+    if (d.fields && f.key in d.fields) {
+      let v = d.fields[f.key];
+      if (f.kind === 'ym' && (!v || (v[0] == null && v[1] == null))) v = [null, null];
+      setField(f, v);
+    }
+  }
+  const rows = $$('#types tr').filter(tr => tr.querySelector('.t'));
+  rows.forEach((tr, i) => {
+    const t = (d.types || [])[i] || ['', null, null];
+    tr.querySelector('.t').value = t[0] ?? '';
+    tr.querySelector('.n').value = t[1] ?? '';
+    tr.querySelector('.a').value = t[2] ?? '';
+  });
+  $$('#plan input').forEach(e => {
+    const arr = (d.monthly || {})[e.dataset.m] || [];
+    const v = arr[+e.dataset.i];
+    e.value = (v === null || v === undefined) ? '' : v;
+  });
+  showTypeRows();
+  updateTypes();
+  applyKinds();
+  openChangedDetails();
+  updatePlanRates();
+}
+
+function updateTypes() {
+  let tot = 0;
+  $$('#types tr').forEach(tr => {
+    const a = tr.querySelector('.a'), n = tr.querySelector('.n');
+    if (!a) return;
+    tr.querySelector('.p').textContent = a.value === '' ? '' : Math.ceil(+a.value * 0.3025);
+    tot += +(n.value || 0);
+  });
+  if ($('#ttot')) $('#ttot').textContent = tot.toLocaleString();
+  return tot;
+}
+
+function markChanged() {
+  if (!S.schema) return;
+  S.schema.sections.forEach((s, i) => {
+    let c = 0, dn = 0, dc = 0;
+    for (const f of s.fields) {
+      if (!visibleField(f)) continue;
+      const same = !fieldChanged(f);
+      const el = $(`.f[data-key="${f.key}"]`);
+      if (el) el.classList.toggle('changed', !same);
+      if (!same) c++;
+      if (!f.main && f.kind !== 'yn') { dn++; if (!same) dc++; }
+    }
+    const tag = $(`details.sec[data-i="${i}"] .cnt`);
+    if (tag) tag.textContent = c ? `입력 ${c}칸` : '기본값';
+    const dt = $(`details.more[data-i="${i}"] .dcnt`);
+    if (dt) dt.textContent = dc ? `${dn}칸 · 바꾼 칸 ${dc}` : `${dn}칸 · 모두 기본값`;
+  });
+  $$('.chk').forEach(c => c.classList.toggle('on', c.querySelector('input').checked));
+}
+
+function saveDraft() { try { localStorage.setItem('pgb_draft2', JSON.stringify({year: S.year, data: collect(), t: Date.now()})); } catch (e) {} }
+function guessKinds(f) {        // 예전 화면에서 입력하던 값: 날짜로 현장 구분 추정
+  const idx = v => (v && v[0] && v[1]) ? v[0] * 12 + v[1] : null;
+  const out = [];
+  const o = idx(f['오픈']);
+  if (o) out.push(o >= S.year * 12 ? 'new' : 'remain');
+  if (idx(f['입주']) || idx(f['사전점검'])) out.push('movein');
+  if (idx(f['사무실시작'])) out.push('office');
+  return out;
+}
+function restoreDraft() {
+  try {
+    let d = JSON.parse(localStorage.getItem('pgb_draft2') || 'null');
+    if (!d) d = JSON.parse(localStorage.getItem('pgb_draft') || 'null');      // 이전 화면 보관값 이어받기
+    if (!d || !d.data) return false;
+    setDefaults();
+    if (!d.data.kinds || !d.data.kinds.length) d.data.kinds = guessKinds(d.data.fields || {});
+    setData(d.data);
+    $('#loadmsg').textContent = '이전에 입력하던 값을 불러왔습니다 (새로 하려면 "새 현장").';
+    return true;
+  } catch (e) { return false; }
+}
+
+// ───────────── 3. 계산
+function ready() {
+  const d = collect();
+  if (!d || !d.kinds.length) return false;
+  const tot = d.types.reduce((a, t) => a + (+t[1] || 0), 0);
+  const has = d.fields['오픈'][0] || d.fields['입주'][0] || d.fields['사전점검'][0] || d.fields['사무실시작'][0];
+  return tot > 0 && has;
+}
+
+function scheduleCalc() {
+  markChanged();
+  updatePlanRates();
+  saveDraft();
+  updateFname();
+  if (!$('#auto').checked) return;
+  clearTimeout(S.timer);
+  S.timer = setTimeout(() => { if (ready()) calc(); }, 900);
+}
+
+function invalidatePreview() {
+  $('#pv').innerHTML = '';
+  $('#pvmsg').textContent = '회사 「사업비 예산편성 양식」에 채운 결과를 그림으로 보여 줍니다(10초 안팎).';
+  if (!$('#pvtab').classList.contains('hidden') && S.job) buildPreview();
+}
+
+async function calc() {
+  if (S.busy) { S.again = true; return; }
+  if (!ready()) { $('#cstat').innerHTML = '<span class="tag warn">현장 구분, 세대수, 오픈월(또는 입주·분양사무실 시작월)을 넣으면 계산합니다</span>'; return; }
+  S.busy = true;
+  $('#bCalc').disabled = true;
+  $('#cstat').innerHTML = '<span class="spin"></span> 이 PC 의 Excel 로 계산 중…';
+  try {
+    const j = await post('/api/calc', {year: S.year, data: collect()});
+    S.job = j.job; S.res = j;
+    renderResult(j);
+    $('#cstat').innerHTML = `${j.sec}초 · 오류 셀 <span class="tag ${j.nerrors ? 'err' : 'ok'}">${j.nerrors}</span>`;
+    if (!S.subTouched && j.default_sub !== undefined) $('#sub').value = j.default_sub;
+    updateFname();
+    invalidatePreview();
+  } catch (e) {
+    $('#cstat').innerHTML = `<span class="tag err">${esc(e.message)}</span>`;
+  } finally {
+    S.busy = false;
+    $('#bCalc').disabled = false;
+    if (S.again) { S.again = false; calc(); }
+  }
+}
+
+function stageClass(s) {
+  if (!s) return '';
+  if (s.startsWith('D+')) return 's-D';
+  if (s.startsWith('입주')) return 's-입주';
+  if (s === 'M/H') return 's-MH';
+  return 's-' + s;
+}
+
+function renderResult(j) {
+  $('#resbody').classList.remove('hidden');
+  const ck = (j.checks || []).filter(c => !String(c).startsWith('✔'));
+  const sold = (j.rates['분양'] || []).reduce((a, v) => a + (+v || 0), 0);
+  if (S.kinds.includes('remain') && !S.kinds.includes('new') && !sold)
+    ck.push('잔여분양 현장은 9번 표에 올해 월별 분양(계약)세대를 넣어 주세요 — 지금은 올해 분양 0세대로 계산되어 분양대행·조직분양 수수료, 인지세, 확정일자가 0입니다.');
+  $('#checks').innerHTML = ck.length ? `<div class="msg warn"><b>점검</b><ul>${ck.map(c => `<li>${esc(String(c).replace(/^·\s*/, ''))}</li>`).join('')}</ul></div>` : '';
+  $('#tot').textContent = k(j.total.total);
+  $('#stage').innerHTML = j.stage.map((s, i) => `<div class="${stageClass(s)}"><b>${i + 1}월</b>${esc(s || '-')}</div>`).join('');
+  for (let i = 0; i < 12; i++) { const e = $('#st' + (i + 1)); if (e) e.textContent = j.stage[i] || ''; }
+  const yy = String(j.year).slice(2);
+  let h = `<tr><th>항목</th><th>세목</th><th>${yy}년 예산</th>` + [...Array(12)].map((_, i) => `<th>${i + 1}월</th>`).join('') + '</tr>';
+  j.groups.forEach((g, gi) => {
+    if (!g.total && !g.rows.some(r => r.manual && r.total)) return;
+    h += `<tr class="g" data-g="${gi}"><td class="it">${esc(g.item)}</td><td>${esc(g.sub)}</td><td class="num yr">${k(g.total)}</td>`
+       + g.months.map(m => `<td class="num">${k(m)}</td>`).join('') + '</tr>';
+    for (const r of g.rows) {
+      if (!r.total) continue;
+      h += `<tr class="d ${r.manual ? 'man' : ''} hidden" data-p="${gi}"><td colspan="2" class="gtxt">${esc(r.g || '(직접입력)')}</td>`
+         + `<td class="num">${k(r.total)}</td>` + r.months.map(m => `<td class="num">${k(m)}</td>`).join('') + '</tr>';
+    }
+  });
+  h += `<tr class="tot"><td colspan="2">합 계</td><td class="num">${k(j.total.total)}</td>` + j.total.months.map(m => `<td class="num">${k(m)}</td>`).join('') + '</tr>';
+  $('#sum').innerHTML = h;
+  $$('#sum tr.g').forEach(tr => tr.onclick = () => {
+    tr.classList.toggle('open');
+    $$(`#sum tr.d[data-p="${tr.dataset.g}"]`).forEach(d => d.classList.toggle('hidden', !tr.classList.contains('open')));
+  });
+  const R = j.rates;
+  const row = (label, arr, fmt) => `<tr><td>${label}</td>` + arr.map(v => `<td class="num">${fmt(v)}</td>`).join('') + '</tr>';
+  const pct = v => (v === '' || v === null || v === undefined) ? '' : (v * 100).toFixed(1) + '%';
+  $('#rates').innerHTML = '<tr><th>분양·입주</th>' + [...Array(12)].map((_, i) => `<th>${i + 1}월</th>`).join('') + '</tr>'
+    + row('분양세대', R['분양'], n0) + row('분양누계', R['분양누계'], n0) + row('분양률', R['분양율'], pct)
+    + row('입주세대', R['입주'], n0) + row('입주율', R['입주율'], pct);
+  $$('#plan input').forEach(e => {
+    const key = e.dataset.m, i = +e.dataset.i;
+    let v = null;
+    if (key === '분양') v = R['분양'][i]; else if (key === '입주') v = R['입주'][i];
+    else if (key === '전년분양') v = R['전년분양'][i + 1]; else if (key === '전년입주') v = R['전년입주'][i + 1];
+    e.placeholder = (v === null || v === undefined || v === '' || Math.round(v) === 0) ? '' : String(Math.round(v));
+  });
+  updatePlanRates();
+}
+
+async function buildPreview() {
+  if (!S.job) return;
+  const job = S.job;
+  $('#bPv').disabled = true;
+  $('#pvmsg').innerHTML = '<span class="spin"></span> 회사 양식에 채우는 중…';
+  try {
+    const j = await post('/api/report', {job});
+    if (job !== S.job) return;
+    $('#pv').innerHTML = j.previews.map(f => `<img src="/api/preview?job=${job}&f=${encodeURIComponent(f)}" alt="${esc(f)}">`).join('');
+    $('#pvmsg').textContent = `${j.form} 에 채운 결과입니다` + (j.sec ? ` (${j.sec}초)` : '') + '. 저장·내려받기도 이 파일입니다.';
+  } catch (e) { $('#pvmsg').innerHTML = `<span class="tag err">${esc(e.message)}</span>`; }
+  finally { $('#bPv').disabled = false; }
+}
+
+// ───────────── 4. 저장
+function today() { const d = new Date(); return [d.getFullYear() % 100, d.getMonth() + 1, d.getDate()].map(x => String(x).padStart(2, '0')).join('.'); }
+function updateFname() {
+  if (S.fnameTouched) return;
+  const d = collect();
+  const site = (d && d.fields['현장명']) || '현장명';
+  let dt = today();
+  if (d && d.fields['작성일']) { const p = String(d.fields['작성일']).split('-'); dt = `${p[0].slice(2)}.${p[1]}.${p[2]}`; }
+  $('#fname').value = `(${site}) ${S.year}년 사업비 예산편성 ${dt}.xlsx`;
+}
+
+async function save(overwrite) {
+  if (!S.job) { $('#smsg').innerHTML = '<div class="msg warn">먼저 계산하세요.</div>'; return; }
+  $('#smsg').innerHTML = '<div class="msg warn"><span class="spin"></span> 회사 양식으로 만들어 저장하는 중…</div>';
+  try {
+    const d = collect();
+    const j = await post('/api/save', {job: S.job, sub: $('#sub').value, filename: $('#fname').value,
+      site: d.fields['현장명'], total: S.res ? Math.round(S.res.total.total / 1000) : null, overwrite: !!overwrite});
+    if (j.exists) {
+      $('#smsg').innerHTML = '';
+      if (confirm('같은 이름의 파일이 있습니다. 덮어쓸까요?\n' + j.path)) return save(true);
+      return;
+    }
+    $('#smsg').innerHTML = `<div class="msg ok">저장했습니다: <b>${esc(j.path)}</b> `
+      + `<button class="small" id="oFile">엑셀로 열기</button> <button class="sub small" id="oDir">폴더 열기</button></div>`;
+    $('#oFile').onclick = () => post('/api/open', {path: j.path});
+    $('#oDir').onclick = () => post('/api/open', {path: j.folder});
+    loadRecent();
+  } catch (e) { $('#smsg').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
+
+async function loadRecent() {
+  if (!S.local) return;
+  const j = await api('/api/recent');
+  $('#recent').innerHTML = '<option value="">— 고르세요 —</option>' + j.sites.map(s =>
+    `<option value="${esc(s.path)}">${esc(s.name)} · ${s.year}년 · ${s.total ? Number(s.total).toLocaleString() + '천원 · ' : ''}${esc(s.saved)}</option>`).join('');
+}
+
+async function readOverview(file) {
+  $('#ovmsg').innerHTML = '<div class="msg warn"><span class="spin"></span> 설계개요를 읽는 중… (그림 PDF 는 글자 인식에 10초 안팎)</div>';
+  try {
+    const j = await upload('/api/types', file);
+    const use = j.types.filter(t => t.use), skip = j.types.filter(t => !t.use);
+    const rows = $$('#types tr').filter(tr => tr.querySelector('.t'));
+    rows.forEach((tr, i) => {
+      const t = use[i];
+      tr.querySelector('.t').value = t ? (t.name ?? '') : '';
+      tr.querySelector('.n').value = (t && t.units != null) ? t.units : '';
+      tr.querySelector('.a').value = (t && t.supply != null) ? t.supply : '';
+      const fl = t ? (t.flags || []) : [];
+      tr.querySelector('.note').textContent = t ? [t.label, ...fl].filter(Boolean).join(' · ') : '';
+      tr.classList.toggle('flag', fl.length > 0);
+      if (tr.classList.contains('xtra')) tr.classList.toggle('hidden', !t);
+    });
+    const sum = use.reduce((a, t) => a + (+t.units || 0), 0);
+    const mark = v => v === true ? '<span class="tag ok">일치</span>' : v === false ? '<span class="tag err">불일치</span>' : '<span class="tag">합계 줄 없음</span>';
+    let h = `<b>${esc(j.name)}</b> (${esc(j.source)} ${esc(j.where)}, ${j.sec}초) → 타입 ${use.length}개 · ${sum.toLocaleString()}세대`
+      + ` · 세대수 합계 ${mark(j.units_ok)} · 공급면적 합계 ${mark(j.supply_ok)}`;
+    const items = [];
+    if (skip.length) items.push(`임대 등 제외: ${skip.map(t => `${t.name} ${t.units ?? '?'}세대(${t.label})`).join(', ')}`);
+    (j.notes || []).forEach(n => items.push(n));
+    const flagged = use.filter(t => (t.flags || []).length);
+    if (flagged.length) items.push('확인 필요(붉은 줄): ' + flagged.map(t => `${t.name} — ${t.flags.join(', ')}`).join(' / '));
+    if (j.confidence !== 'high') items.push('읽은 값이 설계개요와 같은지 표에서 확인해 주세요.');
+    if (items.length) h += '<ul>' + items.map(x => `<li>${esc(x)}</li>`).join('') + '</ul>';
+    $('#ovmsg').innerHTML = `<div class="msg ${j.confidence === 'high' ? 'ok' : 'warn'}">${h}</div>`;
+    updateTypes(); markChanged(); scheduleCalc();
+  } catch (e) { $('#ovmsg').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
+
+async function loaded(j) {
+  if (j.year && String(j.year) !== String(S.year) && S.info.templates.some(t => String(t.year) === String(j.year))) {
+    await loadInfo(j.year);
+    await loadSchema(true);
+  }
+  setDefaults();
+  setData(j.data);
+  S.fnameTouched = false;
+  $('#loadmsg').textContent = `불러옴: ${j.name}` + (j.year && String(j.year) !== String(S.year) ? ` (파일은 ${j.year}년)` : '');
+  markChanged(); saveDraft(); updateFname();
+  if (ready()) calc();
+}
+
+// ───────────── 이벤트
+document.addEventListener('input', e => {
+  if (e.target.closest('#c2') && !e.target.closest('#kinds')) {
+    if (e.target.closest('#types')) updateTypes();
+    scheduleCalc();
+  }
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'fOverview') { const f = e.target.files[0]; e.target.value = ''; if (f) readOverview(f); return; }
+  if (e.target.closest('#c2') && !e.target.closest('#kinds')) scheduleCalc();
+});
+document.addEventListener('click', e => {
+  if (e.target.id === 'moreTypes') { e.preventDefault(); $$('#types tr.xtra').forEach(tr => tr.classList.remove('hidden')); }
+});
+$('#bCalc').onclick = () => calc();
+$('#bExpand').onclick = () => {
+  const open = !$$('#sum tr.g').every(tr => tr.classList.contains('open'));
+  $$('#sum tr.g').forEach(tr => tr.classList.toggle('open', open));
+  $$('#sum tr.d').forEach(d => d.classList.toggle('hidden', !open));
+  $('#bExpand').textContent = open ? '모두 접기' : '모두 펼치기';
+};
+$$('.tabs button').forEach(b => b.onclick = () => {
+  $$('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  $('#sumtab').classList.toggle('hidden', b.dataset.t !== 'sumtab');
+  $('#pvtab').classList.toggle('hidden', b.dataset.t !== 'pvtab');
+  if (b.dataset.t === 'pvtab' && S.job && !$('#pv').innerHTML) buildPreview();
+});
+$('#bPv').onclick = () => buildPreview();
+$('#bParams').onclick = () => showParams().catch(e => alert(e.message));
+$('#mclose').onclick = () => $('#modal').classList.add('hidden');
+$('#modal').onclick = e => { if (e.target.id === 'modal') $('#modal').classList.add('hidden'); };
+$('#mTpl').onclick = $('#bTpl').onclick = () => post('/api/open', {what: 'template', year: S.year}).catch(e => alert(e.message));
+$('#bTool').onclick = () => post('/api/open', {what: 'tooldir'});
+$('#fKijun').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) applyKijun(f); };
+$('#fForm').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) changeForm(f); };
+$('#tpl').onchange = async () => { await loadInfo($('#tpl').value); await loadSchema(true); scheduleCalc(); };
+$('#bNew').onclick = () => {
+  if (!confirm('입력한 값을 모두 지우고 새로 시작할까요?')) return;
+  setDefaults(); updateTypes(); applyKinds(); markChanged(); saveDraft();
+  S.fnameTouched = false; updateFname();
+  S.job = null; $('#resbody').classList.add('hidden'); $('#checks').innerHTML = ''; $('#cstat').textContent = '';
+  $('#loadmsg').textContent = '';
+};
+$('#bLoad').onclick = async () => {
+  const p = $('#recent').value;
+  if (!p) return;
+  try { await loaded(await post('/api/load_path', {path: p})); } catch (e) { $('#loadmsg').textContent = e.message; }
+};
+$('#fLoad').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try { await loaded(await upload('/api/load', f)); } catch (err) { $('#loadmsg').textContent = err.message; }
+};
+$('#fname').oninput = () => S.fnameTouched = true;
+$('#sub').onchange = () => S.subTouched = true;
+$('#bSave').onclick = () => save(false);
+$('#bDown').onclick = () => {
+  if (!S.job) { $('#smsg').innerHTML = '<div class="msg warn">먼저 계산하세요.</div>'; return; }
+  $('#smsg').innerHTML = '<div class="msg warn">회사 양식으로 만드는 중입니다. 잠시 뒤 내려받기가 시작됩니다…</div>';
+  location.href = `/api/download?job=${S.job}&name=${encodeURIComponent($('#fname').value)}`;
+};
+$('#bDownCalc').onclick = e => {
+  e.preventDefault();
+  if (!S.job) { $('#smsg').innerHTML = '<div class="msg warn">먼저 계산하세요.</div>'; return; }
+  location.href = `/api/download?job=${S.job}&kind=calc&name=${encodeURIComponent($('#fname').value.replace(/\.xlsx$/i, '') + '_계산근거.xlsx')}`;
+};
+document.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') calc(); if (e.key === 'Escape') $('#modal').classList.add('hidden'); });
+
+(async () => {
+  try {
+    fetch('/api/warm').catch(() => {});
+    await loadInfo();
+    await loadSchema(false);
+    await loadRecent();
+    updateFname();
+    if (ready()) calc();
+  } catch (e) {
+    document.querySelector('main').insertAdjacentHTML('afterbegin', `<div class="msg err">${esc(e.message)}</div>`);
+  }
+})();
+</script>
+</body>
+</html>

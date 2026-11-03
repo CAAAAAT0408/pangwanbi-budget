@@ -1,0 +1,18 @@
+# 서버가 만드는 것(작업 파일·접속키·기록)
+app/_jobs/
+app/_key.txt
+app/_url.txt
+app/_server.log
+app/_sites.json
+app/_pid.txt
+
+# 양식 재생성 백업
+백업/
+
+# Excel 임시 잠금 파일
+~$*
+
+__pycache__/
+*.pyc
+.vscode/
+Thumbs.db
