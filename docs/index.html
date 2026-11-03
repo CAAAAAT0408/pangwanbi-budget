@@ -243,6 +243,10 @@ const fmtv = v => (v === null || v === undefined) ? '' : (typeof v === 'number' 
 // ───────────── 웹판: 서버 대신 브라우저 안 Python(워커, Pyodide)이 /api/… 와 같은 일을 한다
 const WEB = true;
 const VERSION = '2026.11.03.1107';
+const EXAMPLES = [     // docs/examples/ 에 같이 올려 둔 작성 예시 (tool/sync_web.py 가 복사)
+  {file: '(예시1) 신규분양 - 27.04 오픈 C급 조직분양.xlsx', name: '예시1 신규분양(27.04 오픈)', year: 2027, total: 6106656},
+  {file: '(예시2) 입주현장 - 27.05 사전점검, 27.06 입주.xlsx', name: '예시2 입주현장', year: 2027, total: 1569221},
+  {file: '(예시3) 기공급 잔여분양 - 26.05 오픈, 27.06 MH종료.xlsx', name: '예시3 기공급 잔여분양', year: 2027, total: 3381545}];
 const worker = new Worker('worker.js?v=' + VERSION, {type: 'module'});
 const pending = {};
 let rseq = 0, resolveReady;
