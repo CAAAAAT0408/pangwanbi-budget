@@ -103,7 +103,7 @@ details.more[open]>summary:before{content:"▾ "}
 #sum tr.g td.it:before{content:"▸ ";color:var(--sub)}
 #sum tr.g.open td.it:before{content:"▾ "}
 #sum tr.d td{background:#fbfcfd;color:#333}
-#sum tr.d td.gtxt{text-align:left;font-size:12px;white-space:normal;min-width:260px}
+#sum tr.d td.gtxt{text-align:left;font-size:12px;white-space:pre-wrap;min-width:260px}
 #sum tr.d.man td{background:#fff8e1}
 #sum tr.tot td{background:#fce4d6;font-weight:bold}
 #sum td.yr{background:#f0f6ff;font-weight:bold}
@@ -133,7 +133,7 @@ details.more[open]>summary:before{content:"▾ "}
 .pvt th{background:#dfe9f7;color:var(--ink);font-weight:bold;padding:4px 6px}
 .pvt td{padding:3px 6px;text-align:left;white-space:nowrap}
 .pvt td.num{text-align:right;font-variant-numeric:tabular-nums}
-.pvt td.g{white-space:normal;min-width:260px;font-size:11.5px}
+.pvt td.g{white-space:pre-wrap;min-width:260px;font-size:11.5px}
 .pvt tr.sub td{background:#f1f3f6;font-weight:bold}
 .pvt tr.tot td{background:#fce4d6;font-weight:bold}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -245,7 +245,7 @@ const fmtv = v => (v === null || v === undefined) ? '' : (typeof v === 'number' 
 
 // ───────────── 웹판: 서버 대신 브라우저 안 Python(워커, Pyodide)이 /api/… 와 같은 일을 한다
 const WEB = true;
-const VERSION = '2026.11.04.1153';
+const VERSION = '2026.11.04.1422';
 const EXAMPLES = [     // docs/examples/ 에 같이 올려 둔 작성 예시 (tool/sync_web.py 가 복사)
   {file: '(예시1) 신규분양 - 27.04 오픈 C급 조직분양.xlsx', name: '예시1 신규분양(27.04 오픈)', year: 2027, total: 6106656},
   {file: '(예시2) 입주현장 - 27.05 사전점검, 27.06 입주.xlsx', name: '예시2 입주현장', year: 2027, total: 1569221},

@@ -7,7 +7,7 @@
   m.value("계산", "J68")            # 계산값 (숫자·글·bool·None·XLError)
   m.values("27년 예산", "A1:U300")  # 2차원 목록
 
-지원 함수: IF AND OR NOT SUM MIN MAX AVERAGE ROUND ROUNDUP ROUNDDOWN INT MOD N TEXT COUNTIF COUNT COUNTA
+지원 함수: IF AND OR NOT SUM MIN MAX AVERAGE ROUND ROUNDUP ROUNDDOWN INT MOD N TEXT CHAR COUNTIF COUNT COUNTA
           INDEX MATCH COLUMN ROW IFERROR ISERROR ISNUMBER ISBLANK LEFT RIGHT MID LEN TODAY ABS VALUE
 연산자: + - * / ^ & = <> < > <= >= 단항 - , % 와 범위·이름·다른 시트 참조, 배열 비교(J11:U11<>0) 와 INDEX(…,0)·MATCH(TRUE,…).
 Excel 과 같게: 빈 칸은 0/"", ROUND 는 .5 올림(0 에서 먼 쪽), 글자 비교는 대소문자 무시, 숫자<글자<논리.
@@ -755,6 +755,8 @@ class Model:
             return num(sc(0))
         if name == "TEXT":
             return excel_text(sc(0), txt(sc(1)))
+        if name == "CHAR":
+            return chr(int(num(sc(0))))
         if name == "LEFT":
             s = txt(sc(0))
             return s[:int(num(sc(1))) if len(args) > 1 else 1]

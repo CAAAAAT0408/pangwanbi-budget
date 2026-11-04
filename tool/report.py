@@ -142,8 +142,12 @@ def widen(ws, cols):
 
 
 def _lines(text, width_units=72):
-    w = sum(1.9 if ord(ch) > 0x2E80 else 1.0 for ch in (text or ""))
-    return max(1, math.ceil(w / width_units))
+    """산출근거 글이 차지하는 줄 수(줄바꿈 + 칸 너비를 넘치는 만큼)"""
+    n = 0
+    for line in (text or "").split("\n"):
+        w = sum(1.9 if ord(ch) > 0x2E80 else 1.0 for ch in line)
+        n += max(1, math.ceil(w / width_units))
+    return n
 
 
 # ── 27년 예산 ─────────────────────────────────────────────────────
@@ -191,6 +195,7 @@ def fill_budget(ws, res, title, date_txt, site, keep_interest=False):
             subs.append(rr)
             sub_of[gi] = rr
     write_block(ws, a, out, "B", "U")
+    ws.Range(f"G{a}:G{b}").WrapText = True        # 산출근거가 길거나 여러 줄(합친 세목)이어도 칸 안에 다 보이게
     # 회사 양식은 '실적' 열(E) 가운데 줄의 윗선(점선)이 빠져 있어 행을 복사하면 실적 칸 사이 점선이 사라짐
     # → 항목 묶음마다 실적 칸 사이에 세목 열(D)과 같은 점선을 다시 그린다
     for gi in start_of:

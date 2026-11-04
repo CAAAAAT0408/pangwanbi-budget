@@ -1,7 +1,7 @@
 // 지출계획서 자동작성 웹판 — 브라우저 안에서 Python(Pyodide)을 띄워 엔진(jichul.py)을 돌린다(모듈 워커). 파일은 밖으로 나가지 않는다.
 // 예산안 웹판(../worker.js)과 같은 Pyodide 묶음을 쓰되 PDF 읽기 부품은 받지 않아 더 가볍다(openpyxl 휠만).
 import { loadPyodide } from 'https://cdn.jsdelivr.net/npm/@bentopdf/pymupdf-wasm@0.11.16/assets/pyodide.js';
-const VERSION = '2026.11.04.1153';
+const VERSION = '2026.11.04.1422';
 const PYODIDE = 'https://cdn.jsdelivr.net/npm/@bentopdf/pymupdf-wasm@0.11.16/assets/';
 const WHEELS = ['../wheels/et_xmlfile-2.0.0-py3-none-any.whl', '../wheels/openpyxl-3.1.5-py2.py3-none-any.whl'];
 const PY_FILES = [['../py/jichul.py', 'jichul.py'], ['../py/jichul_xlsx.py', 'jichul_xlsx.py'], ['../py/params.py', 'params.py'],

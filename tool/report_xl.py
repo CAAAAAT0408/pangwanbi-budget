@@ -242,6 +242,37 @@ class StyleKit:
         self.cache[key] = len(xfs) - 1
         return self.cache[key]
 
+    def with_wrap(self, s):
+        """줄바꿈(wrapText) 을 켠 서식"""
+        key = (s, 'wrap')
+        if key in self.cache:
+            return self.cache[key]
+        xfs = self._list('cellXfs')
+        al = xfs[s].find(q('alignment'))
+        if al is not None and al.get('wrapText') == '1':
+            self.cache[key] = s
+            return s
+        nx = copy.deepcopy(xfs[s])
+        al = nx.find(q('alignment'))
+        if al is None:
+            al = etree.Element(q('alignment'))
+            nx.insert(0, al)
+        al.set('wrapText', '1')
+        nx.set('applyAlignment', '1')
+        xfs.append(nx)
+        xfs.set('count', str(len(xfs)))
+        self.cache[key] = len(xfs) - 1
+        return self.cache[key]
+
+
+def set_wrap(sh, kit, ref):
+    s = sh.style(ref)
+    if s is None:
+        sh._cell(ref)
+        s = 0
+    sh.set_style(ref, kit.with_wrap(s))
+    sh.book.touched.add(sh.path)
+
 
 def set_side(sh, kit, ref, side, side_el):
     s = sh.style(ref)
@@ -423,6 +454,8 @@ def fill_budget(sh, kit, res, title, date_txt, site, keep_interest=False):
             subs.append(rr)
             sub_of[gi] = rr
     write_block(sh, a, out, 'B', 'U')
+    for rr in range(a, b + 1):                     # 산출근거 칸 줄바꿈(합친 세목은 여러 줄) — report.fill_budget 과 같게
+        set_wrap(sh, kit, f'G{rr}')
     # 실적 열(E) 가운데 줄 윗선이 양식에 없음 → 묶음마다 세목 열(D)과 같은 점선을 다시 그림 (report.fill_budget 과 같게)
     for gi in start_of:
         s0, s1 = start_of[gi], sub_of[gi] - 1
