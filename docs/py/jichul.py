@@ -13,7 +13,8 @@
   period_text(res)          파일 이름용 기간 글 ('26.10_12월)
 
 data 구조(화면·저장 파일 공통)
-  kinds     : ["mh", "movein", "office"] 중 해당하는 것 (견본주택 오픈·운영 / 입주 / 분양사무실)
+  kinds     : ["mh", "run", "movein", "office"] 중 해당하는 것 (견본주택 오픈 / 견본주택 운영 / 입주 / 분양사무실)
+              mh 는 오픈 일정(오픈월·사전영업)으로 단계를 잡고, run 은 오픈 일정 없이 기간 전체를 M/H 운영 기준으로(둘 다면 mh)
   fields    : {칸이름: 값}  (연월 칸은 [연, 월])
   months    : 기간 달마다 {"events": [행사…], "label": 머리글 직접입력, "식대인원": n, "청소인원": n}
   overrides : {줄키: {"0": 금액 또는 "=산식", …}}   화면에서 직접 고친 칸
@@ -67,7 +68,8 @@ EVENTS = [
 ]
 EVENT_LABEL = {k: lb for k, lb, _ in EVENTS}
 
-KIND_LABELS = [("mh", "견본주택 오픈·운영", "사전영업·오픈·계약·선착순… M/H 운영 기간"),
+KIND_LABELS = [("mh", "견본주택 오픈", "사전영업·오픈·계약 분기 — 오픈월을 넣으면 단계별(사전/오픈/D+1) 기준"),
+               ("run", "견본주택 운영", "이미 오픈한 M/H 의 운영 분기 — 오픈 일정 없이 운영 기준, 행사(선착순·중도금대출 등)는 달마다"),
                ("movein", "입주", "사전점검·입주지원센터 운영"),
                ("office", "분양사무실", "M/H 철거 뒤 분양사무실 운영")]
 
@@ -83,41 +85,41 @@ INPUTS = [
     ("세대수", "총세대수", "int", None, "세대", "내용증명·확정일자·안내문 등기 건수의 기준", None, "", True),
     ("제목", "제목(직접)", "text", None, "", "비우면 내용에 따라 'M/H 오픈비용 / M/H 운영비용 / 입주비용 / 운영비용 지출계획서'", None, "", False),
 
-    ("2. 견본주택 일정·운영", None),
-    ("오픈", "오픈월(D)", "ym", None, "연 / 월", "이미 오픈한 현장도 넣어야 운영 단계(D+n)를 압니다", None, "mh", True),
+    ("2. 견본주택 오픈·운영", None),
+    ("오픈", "오픈월(D)", "ym", None, "연 / 월", "사전영업 뒤 오픈하는 달 — 식대·소모품·청소·여비가 사전/오픈/계약(D+1) 단계별 기준으로. 이미 오픈해 운영 중이면 「견본주택 운영」 구분으로", None, "mh", True),
     ("사전영업", "사전영업 기간", "int", 1, "개월", "오픈 전 사전영업 개월수(기준 1개월) — M/H 운영 시작, 숙소비·무인경비 공사·운반비 시점", None, "mh", True),
-    ("MH종료", "M/H 운영 종료월", "ym", None, "연 / 월", "비우면 기간 끝까지 운영", None, "mh", True),
-    ("조직시작", "조직분양(잔여판촉) 시작월", "ym", None, "연 / 월", "이 기간은 잔여판촉 기준(식대 20천원×3명, 청소 2명). 선착순 행사를 고른 달도 같음", None, "mh", False),
-    ("조직종료", "조직분양(잔여판촉) 종료월", "ym", None, "연 / 월", "비우면 M/H 종료까지", None, "mh", False),
+    ("MH종료", "M/H 운영 종료월", "ym", None, "연 / 월", "비우면 기간 끝까지 운영", None, "mh run", True),
+    ("조직시작", "조직분양(잔여판촉) 시작월", "ym", None, "연 / 월", "이 기간은 잔여판촉 기준(식대 20천원×3명, 청소 2명). 선착순 행사를 고른 달도 같음", None, "mh run", False),
+    ("조직종료", "조직분양(잔여판촉) 종료월", "ym", None, "연 / 월", "비우면 M/H 종료까지", None, "mh run", False),
     ("유니트", "유니트 수", "int", 3, "개", "청소 인원: 오픈 1개월차 3개 이하 3명/4개 이상 4명, 2개월차 2명/3명", None, "mh", True),
-    ("숙소호실", "상주인력 숙소 호실 수", "int", 3, "호실", "숙소비 1,000천원/월×3개월 일시불(사전영업 시작월) + 숙소관리비 200천원/월×호실", None, "mh", True),
-    ("숙소시작", "숙소 시작월", "ym", None, "연 / 월", "비우면 사전영업 시작월", None, "mh", False),
-    ("숙소종료", "숙소 종료월", "ym", None, "연 / 월", "비우면 M/H 종료월. 일시불 3개월 뒤에도 운영 중이면 월 1,000천원×호실", None, "mh", False),
-    ("숙소월납", "숙소비 월납(일시불 대신 매월)", "yn", "N", "", "체크하면 3개월 일시불 대신 매월 1,000천원×호실", None, "mh", False),
-    ("숙소중개", "숙소 부동산 중개수수료", "num", 0, "천원/호실", "기준안에 없음. 필요하면 호실당 금액(숙소 시작월에 지급수수료-기타 줄로)", None, "mh", False),
-    ("PC", "사무실 PC 대수", "int", 6, "대", "100천원/월·대, M/H 운영 기간", None, "mh", True),
-    ("복합기", "복합기 대수", "int", 1, "대", "300천원/월·대", None, "mh", True),
-    ("프린터", "계약용 프린터 대수", "int", "K:프린터_대수", "대", "200천원/월·대, 오픈월부터", None, "mh", False),
-    ("파쇄기", "파쇄기(세단기)", "yn", "Y", "", "300천원/월, 오픈월부터", None, "mh", False),
+    ("숙소호실", "상주인력 숙소 호실 수", "int", 3, "호실", "오픈: 1,000천원/월×3개월 일시불(사전영업 시작월) · 운영: 기존 숙소 1,000천원/월×호실 — 둘 다 숙소관리비 200천원/월×호실 추가", None, "mh run", True),
+    ("숙소시작", "숙소 시작월", "ym", None, "연 / 월", "비우면 사전영업 시작월(운영 구분은 기간 첫 달부터 기존 숙소 월납). 넣으면 그 달에 3개월 일시불", None, "mh run", False),
+    ("숙소종료", "숙소 종료월", "ym", None, "연 / 월", "비우면 M/H 종료월. 일시불 3개월 뒤에도 운영 중이면 월 1,000천원×호실", None, "mh run", False),
+    ("숙소월납", "숙소비 월납(일시불 대신 매월)", "yn", "N", "", "체크하면 3개월 일시불 대신 매월 1,000천원×호실", None, "mh run", False),
+    ("숙소중개", "숙소 부동산 중개수수료", "num", 0, "천원/호실", "기준안에 없음. 필요하면 호실당 금액(숙소 시작월에 지급수수료-기타 줄로)", None, "mh run", False),
+    ("PC", "사무실 PC 대수", "int", 6, "대", "100천원/월·대, M/H 운영 기간", None, "mh run", True),
+    ("복합기", "복합기 대수", "int", 1, "대", "300천원/월·대", None, "mh run", True),
+    ("프린터", "계약용 프린터 대수", "int", "K:프린터_대수", "대", "200천원/월·대, 오픈월부터", None, "mh run", False),
+    ("파쇄기", "파쇄기(세단기)", "yn", "Y", "", "300천원/월, 오픈월부터", None, "mh run", False),
     ("보안공사", "무인경비 공사비", "yn", "Y", "", "사전영업 시작월 2,000천원 (용역비 400천원/월은 M/H 운영 기간 자동)", None, "mh", False),
-    ("오수관리", "오수관리 용역", "yn", "N", "", "450천원/월 — 기준안에는 있으나 과거 지출계획서는 넣지 않음", None, "mh", False),
+    ("오수관리", "오수관리 용역", "yn", "N", "", "450천원/월 — 기준안에는 있으나 과거 지출계획서는 넣지 않음", None, "mh run", False),
     ("가구", "사무용가구", "yn", "Y", "", "4,000천원, 오픈 전월(사전영업 시작월)", None, "mh", False),
-    ("운반비", "운반비(집기이동·이전)", "yn", "Y", "", "2,500천원/회 — 사전영업 시작월·입주개시월·분양사무실 시작월·'사무실 이전' 행사 달", None, "mh movein office", False),
+    ("운반비", "운반비(집기이동·이전)", "yn", "Y", "", "2,500천원/회 — 사전영업 시작월·입주개시월·분양사무실 시작월·'사무실 이전' 행사 달", None, "mh run movein office", False),
     ("보험료", "견본주택 보험료", "yn", "N", "", "10,000천원/년 — 사전영업 시작월. 보통 별도 결재라 기본 제외", None, "mh", False),
-    ("송금수수료", "송금수수료", "yn", "N", "", "30천원/월 — 예산안에는 있으나 지출계획서에는 보통 넣지 않음", None, "mh movein office", False),
-    ("전기료", "전기료", "yn", "N", "", "동·하절기 10,000 / 기타 6,000천원/월 — 자동이체라 보통 제외", None, "mh", False),
-    ("난방비", "난방비", "yn", "N", "", "11~3월 1,000천원/월 — 보통 제외", None, "mh", False),
+    ("송금수수료", "송금수수료", "yn", "N", "", "30천원/월 — 예산안에는 있으나 지출계획서에는 보통 넣지 않음", None, "mh run movein office", False),
+    ("전기료", "전기료", "yn", "N", "", "동·하절기 10,000 / 기타 6,000천원/월 — 자동이체라 보통 제외", None, "mh run", False),
+    ("난방비", "난방비", "yn", "N", "", "11~3월 1,000천원/월 — 보통 제외", None, "mh run", False),
     ("예비비율", "예비입주자 내용증명 비율", "pct", 5, "", "오픈월 내용증명 건수 = 총세대 × 비율 (기준 500%)", None, "mh", False),
-    ("식대단가오픈", "식대 단가 - 오픈 2개월·잔여판촉", "num", 20, "천원/일", "20천원/일 (기준안)", None, "mh", False),
-    ("식대단가기타", "식대 단가 - 기타", "num", 10, "천원/일", "10천원/일 (기준안)", None, "mh movein", False),
+    ("식대단가오픈", "식대 단가 - 오픈 2개월·잔여판촉", "num", 20, "천원/일", "20천원/일 (기준안)", None, "mh run", False),
+    ("식대단가기타", "식대 단가 - 기타", "num", 10, "천원/일", "10천원/일 (기준안)", None, "mh run movein", False),
     ("식대인원오픈", "식대 인원 - 오픈 2개월", "int", "K:식대인원:식대_오픈:식대단가오픈", "명", "비우면 기준 금액(오픈 2개월 3,000천원 = 20천원×5명×30일)", None, "mh", False),
-    ("식대인원기타", "식대 인원 - 기타(사전영업·오픈 3개월~·입주)", "int", "K:식대인원:식대_기타:식대단가기타", "명", "비우면 기준 금액(1,200천원 = 10천원×4명×30일)", None, "mh movein", False),
-    ("식대인원잔여", "식대 인원 - 조직분양·선착순(잔여판촉)", "int", "K:식대인원:식대_잔여:식대단가오픈", "명", "비우면 기준 금액(1,800천원 = 20천원×3명×30일)", None, "mh", False),
-    ("은행식대단가", "은행 식대 단가(중도금대출 자서)", "num", 10, "천원/일", "중도금대출 행사 달: 단가×일수×인원", None, "mh", False),
-    ("은행식대일수", "은행 식대 일수", "int", 7, "일", "", None, "mh", False),
-    ("은행식대인원", "은행 식대 인원", "int", 20, "명", "", None, "mh", False),
-    ("옵션안내", "유상옵션 안내문 등기", "yn", "Y", "", "유상옵션 행사 달 4.5천원×세대", None, "mh", False),
-    ("도서인쇄", "도서인쇄비(대봉투 등)", "num", 0, "천원", "사전영업 시작월(없으면 첫 달)에 1회. 0이면 줄 없음", None, "mh", False),
+    ("식대인원기타", "식대 인원 - 기타(사전영업·오픈 3개월~·입주)", "int", "K:식대인원:식대_기타:식대단가기타", "명", "비우면 기준 금액(1,200천원 = 10천원×4명×30일)", None, "mh run movein", False),
+    ("식대인원잔여", "식대 인원 - 조직분양·선착순(잔여판촉)", "int", "K:식대인원:식대_잔여:식대단가오픈", "명", "비우면 기준 금액(1,800천원 = 20천원×3명×30일)", None, "mh run", False),
+    ("은행식대단가", "은행 식대 단가(중도금대출 자서)", "num", 10, "천원/일", "중도금대출 행사 달: 단가×일수×인원", None, "mh run", False),
+    ("은행식대일수", "은행 식대 일수", "int", 7, "일", "", None, "mh run", False),
+    ("은행식대인원", "은행 식대 인원", "int", 20, "명", "", None, "mh run", False),
+    ("옵션안내", "유상옵션 안내문 등기", "yn", "Y", "", "유상옵션 행사 달 4.5천원×세대", None, "mh run", False),
+    ("도서인쇄", "도서인쇄비(대봉투 등)", "num", 0, "천원", "사전영업 시작월(없으면 첫 달)에 1회. 0이면 줄 없음", None, "mh run", False),
 
     ("3. 입주 일정", None),
     ("사전점검", "사전점검월", "ym", None, "연 / 월", "입주지원센터 운영 시작(소모품 1,000·식대·여비·복합기·PC)", None, "movein", True),
@@ -339,6 +341,9 @@ def calc(data, K=None):
     K = dict(default_params(), **(K or {}))
     f = dict(data.get("fields") or {})
     kinds = set(data.get("kinds") or [])
+    if "mh" in kinds:
+        kinds.discard("run")                      # 오픈 구분이 있으면 운영 구분은 뜻이 없음(같은 M/H)
+    mhk = "mh" in kinds or "run" in kinds        # 견본주택(오픈 또는 운영)
     warnings = []
 
     def fv(key):
@@ -365,9 +370,9 @@ def calc(data, K=None):
     units = int(_n(fv("세대수"), 0) or 0)
     metro = str(fv("지역") or "수도권") != "비수도권"
 
-    D = _ym(f.get("오픈")) if "mh" in kinds else None
+    D = _ym(f.get("오픈")) if "mh" in kinds else None          # 운영 구분(run)은 오픈 일정을 쓰지 않는다
     if "mh" in kinds and D is None:
-        warnings.append("견본주택 오픈월을 넣어 주세요(이미 오픈한 현장도). 지금은 운영(오픈 3개월~) 기준으로 계산합니다.")
+        warnings.append("오픈월을 넣어 주세요. 이미 오픈해 운영 중인 현장이면 현장 구분을 「견본주택 운영」으로 고르세요(지금은 운영 기준으로 계산).")
     pre_n = int(_n(fv("사전영업"), 1) or 0)
     pre_start = (D - pre_n) if D else None
     mh_end = _ym(f.get("MH종료")) or INF
@@ -381,7 +386,7 @@ def calc(data, K=None):
     if "office" in kinds and of1 is None:
         warnings.append("분양사무실 운영 시작월을 넣어 주세요.")
     if not kinds:
-        warnings.append("현장 구분(견본주택 오픈·운영 / 입주 / 분양사무실)을 고르세요.")
+        warnings.append("현장 구분(견본주택 오픈 / 견본주택 운영 / 입주 / 분양사무실)을 고르세요.")
 
     mlist = data.get("months") or []
 
@@ -389,10 +394,13 @@ def calc(data, K=None):
         return mlist[i] if i < len(mlist) and isinstance(mlist[i], dict) else {}
 
     # 숙소
-    lodging = int(_n(fv("숙소호실"), 0) or 0) if "mh" in kinds else 0
+    lodging = int(_n(fv("숙소호실"), 0) or 0) if mhk else 0
     S = _ym(f.get("숙소시작")) or pre_start
     E = _ym(f.get("숙소종료")) or mh_end
     monthly = yn("숙소월납")
+    lod_existing = False
+    if lodging and S is None:                     # 운영 구분(오픈 일정 없음): 이미 쓰는 숙소 — 기간 첫 달부터 월납
+        S, lod_existing = idxs[0], True
     lod_months = int(_n(K.get("숙소_개월"), 3) or 3)
     lod_price = _n(K.get("숙소비_월"), 1000)
     mv_lodging = int(_n(fv("입주숙소"), 0) or 0) if "movein" in kinds else 0
@@ -402,7 +410,7 @@ def calc(data, K=None):
     for i, t in enumerate(idxs):
         ev = set(minfo(i).get("events") or [])
         k = (t - D) if D is not None else None
-        mh = ("mh" in kinds) and (D is None or (pre_start <= t <= mh_end))
+        mh = mhk and t <= mh_end and (D is None or pre_start <= t)
         st = dict(
             k=k, pre=(D is not None and pre_start <= t < D), open=(k == 0), open2=(k in (0, 1)),
             after3=(k is not None and 2 <= k <= 4), mh=mh, mh_open=(mh and (k is None or k >= 0)),
@@ -456,7 +464,9 @@ def calc(data, K=None):
         # 숙박비
         c = cells["숙박비"][i]
         if lodging and S is not None and S <= t <= E:
-            if monthly:
+            if lod_existing:
+                c.add(f"{_won(lod_price)}*{lodging}", f"기존 숙소 : {_c(lod_price)}/월×{lodging}호")
+            elif monthly:
                 c.add(f"{_won(lod_price)}*{lodging}", f"상주인력 숙소 : {_c(lod_price)}/월×{lodging}호")
             elif t == S:
                 c.add(f"{_won(lod_price)}*{lod_months}*{lodging}", f"상주인력 숙소 : {_c(lod_price)}/월×{lod_months}개월(일시불)×{lodging}호")
@@ -751,7 +761,7 @@ def calc(data, K=None):
         dt = datetime.datetime.now()
     date_txt = f"( 작성일 : {dt.year}년 {dt.month:02d}월 {dt.day:02d}일 )"
     approvers = approver_box(data.get("approvers"))
-    if units == 0 and ("mh" in kinds or "movein" in kinds):
+    if units == 0 and (mhk or "movein" in kinds):
         warnings.append("총세대수가 비어 있어 내용증명·확정일자·안내문 등기 건수는 0으로 계산했습니다.")
     return dict(title=title, kind=kind, site=site, date_txt=date_txt, date=dt.strftime("%Y-%m-%d"), approvers=approvers,
                 months=months_out, groups=groups, total=total_m, total_all=sum(total_m), warnings=warnings,

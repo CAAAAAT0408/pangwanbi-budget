@@ -97,6 +97,14 @@ try:
         print(f"예시 {ex}: {js('S.res.title')} {js('JSON.stringify(S.res.months.map(m => m.label))')} 합계 {web_total:,.0f} "
               f"| PC 엔진 {local['total_all']:,.0f} {'일치' if abs(web_total - local['total_all']) < 1 else '불일치!'} · 경고 {js('JSON.stringify(S.res.warnings)')}")
         assert abs(web_total - local["total_all"]) < 1
+        if ex == "run":    # 운영 구분: 오픈월 칸은 숨고 M/H 종료월은 보임, 구분은 run 하나
+            assert js("document.querySelector('.f[data-key=오픈]').classList.contains('hidden')") and js("S.kinds.join()") == "run"
+            assert js("document.querySelector('.f[data-key=MH종료]').classList.contains('hidden')") is False
+    js("document.querySelector('#kinds input[value=run]').click()")      # 입주 예시 뒤: 운영을 켜면 입주와 같이 감
+    assert js("S.kinds.join()") == "run,movein", js("S.kinds.join()")
+    js("document.querySelector('#kinds input[value=mh]').click()")       # 오픈을 켜면 운영만 꺼지고 입주는 그대로
+    assert js("S.kinds.join()") == "mh,movein", js("S.kinds.join()")
+    print("오픈 구분을 누르면 운영 구분이 꺼짐 · 현장 구분:", js("[...document.querySelectorAll('#kinds .kind b')].map(e => e.textContent).join(' / ')"))
 
     # 칸 직접 수정(산식) + 비고 수정 + 결재자 추가 → 다시 계산
     js("example('open')")

@@ -34,7 +34,7 @@ button:disabled{opacity:.5;cursor:default}
 .msg.ok{background:var(--okbg);color:var(--ok)}.msg.warn{background:var(--warnbg);color:var(--warn);border:1px solid #f0d9a8}.msg.err{background:var(--errbg);color:var(--err)}
 .msg ul{margin:4px 0 0;padding-left:20px}
 .kinfo b{color:var(--ink)}
-.kinds{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 14px}
+.kinds{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin:0 0 14px}
 .kind{border:2px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;background:#fafbfc;display:flex;gap:10px;align-items:flex-start;user-select:none}
 .kind input{width:18px;height:18px;margin-top:2px;accent-color:var(--accent)}
 .kind b{display:block;font-size:15px}
@@ -162,12 +162,12 @@ td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
       <button class="sub small" id="bLoad">불러오기</button></span>
     <label class="btn sub small">엑셀 파일에서 불러오기<input type="file" id="fLoad" accept=".xlsx"></label>
     <span class="hint">예시:</span>
-    <button class="sub small ex" data-ex="open">M/H 오픈</button><button class="sub small ex" data-ex="run">M/H 운영(중도금대출)</button><button class="sub small ex" data-ex="movein">입주</button>
+    <button class="sub small ex" data-ex="open">M/H 오픈</button><button class="sub small ex" data-ex="run">M/H 운영(선착순·중도금대출)</button><button class="sub small ex" data-ex="movein">입주</button>
     <span class="hint" id="loadmsg"></span>
   </div>
-  <div><b>현장 구분</b> <span class="hint">이 기간에 해당하는 것을 모두 고르세요 — 고른 것에 맞는 칸만 보입니다</span></div>
+  <div><b>현장 구분</b> <span class="hint">이 기간에 해당하는 것을 모두 고르세요 — 고른 것에 맞는 칸만 보입니다. 견본주택은 오픈 분기면 「오픈」, 이미 오픈한 뒤면 「운영」(오픈 일정을 묻지 않음) 중 하나</span></div>
   <div class="kinds" id="kinds" style="margin-top:6px"></div>
-  <div class="kindhint" id="kindhint">먼저 위에서 현장 구분(견본주택 오픈·운영 / 입주 / 분양사무실)을 고르세요.</div>
+  <div class="kindhint" id="kindhint">먼저 위에서 현장 구분(견본주택 오픈 / 견본주택 운영 / 입주 / 분양사무실)을 고르세요.</div>
   <div id="form"></div>
   <details class="sec" open id="monthSec"><summary>월별 단계·행사 <span class="tag">달마다 행사를 고르면 식대·확정일자·안내문 등기가 반영되고 머리글에 표시됩니다</span></summary>
     <div class="scroll" style="padding:4px 14px 12px"><table id="mt"></table>
@@ -228,7 +228,7 @@ const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 window.addEventListener('error', e => console.error('PAGEERR', e.message, e.filename, e.lineno));
 window.addEventListener('unhandledrejection', e => console.error('PAGEREJ', e.reason && (e.reason.stack || e.reason)));
-const VERSION = '2026.11.03.1947';
+const VERSION = '2026.11.04.1153';
 const S = {mode: null, info: null, schema: null, year: null, res: null, kinds: [], months: [], overrides: {}, notes: {}, extra: [],
   approvers: {list: null, width: null, height: null}, title: null, timer: null, busy: false, again: false, fnameTouched: false, folderTouched: false};
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
@@ -337,6 +337,7 @@ async function showParams() {
 }
 
 // ───────────── 2. 입력 양식
+const ONE_OF = ['mh', 'run'];          // 견본주택 오픈 / 운영 — 같은 M/H 이므로 하나만 고른다
 function fieldHtml(f) {
   const id = 'f_' + f.key;
   const tags = (f.tags || []).join(' ');
@@ -358,7 +359,9 @@ function fieldHtml(f) {
 }
 function renderForm(sc) {
   $('#kinds').innerHTML = sc.kinds.map(x => `<label class="kind" data-k="${x.key}"><input type="checkbox" value="${x.key}"><span><b>${esc(x.label)}</b><small>${esc(x.help)}</small></span></label>`).join('');
-  $$('#kinds input').forEach(e => e.onchange = () => { S.kinds = $$('#kinds input').filter(x => x.checked).map(x => x.value); applyKinds(); scheduleCalc(); });
+  $$('#kinds input').forEach(e => e.onchange = () => {
+    if (e.checked && ONE_OF.includes(e.value)) ONE_OF.filter(k => k !== e.value).forEach(k => { const o = $(`#kinds input[value="${k}"]`); if (o) o.checked = false; });   // 오픈·운영은 하나만
+    S.kinds = $$('#kinds input').filter(x => x.checked).map(x => x.value); applyKinds(); scheduleCalc(); });
   let h = '';
   sc.sections.forEach((s, i) => {
     h += `<details class="sec" open data-i="${i}"><summary>${esc(s.title)} <span class="tag cnt"></span></summary>`;
@@ -839,7 +842,7 @@ function example(kind) {
   const f = {'현장명': '예시현장', '시작': ymAdd(y, m, 1), '개월수': 3, '지역': '수도권', '세대수': 700};
   let kinds = [], months = [{events: []}, {events: []}, {events: []}];
   if (kind === 'open') { kinds = ['mh']; f['오픈'] = ymAdd(y, m, 2); f['현장명'] = '예시 신규오픈'; }
-  else if (kind === 'run') { kinds = ['mh']; f['오픈'] = ymAdd(y, m, -3); f['현장명'] = '예시 운영중'; months = [{events: ['선착순']}, {events: ['중도금대출', '선착순']}, {events: ['선착순']}]; }
+  else if (kind === 'run') { kinds = ['run']; f['현장명'] = '예시 운영중'; months = [{events: ['선착순']}, {events: ['중도금대출', '선착순']}, {events: ['선착순']}]; }
   else { kinds = ['movein']; f['사전점검'] = ymAdd(y, m, 2); f['입주'] = ymAdd(y, m, 3); f['현장명'] = '예시 입주'; }
   setData({kinds, fields: f, months, overrides: {}, notes: {}, extra: [], approvers: {list: null}});
   S.fnameTouched = false; S.folderTouched = false;

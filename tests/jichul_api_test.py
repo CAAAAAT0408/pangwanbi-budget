@@ -45,7 +45,7 @@ print("info:", info["year"], info["kijun"], "단가", info["count"], "저장 위
 assert info["ok"] and info["count"] > 100
 sc = get(f"/api/jichul/schema?year={info['year']}")
 print("schema: 구역", [s["title"] for s in sc["sections"]], "구분", [k["key"] for k in sc["kinds"]], "행사", len(sc["events"]))
-assert len(sc["sections"]) == 4 and len(sc["kinds"]) == 3 and len(sc["events"]) == 6
+assert len(sc["sections"]) == 4 and [k["key"] for k in sc["kinds"]] == ["mh", "run", "movein", "office"] and len(sc["events"]) == 6
 pr = get(f"/api/jichul/params?year={info['year']}")
 assert pr["ok"] and len(pr["params"]) > 100
 
