@@ -1,0 +1,19 @@
+{
+ "pages": {
+  "budget": {
+   "name": "판관비 예산안 자동작성(연간 예산안)",
+   "version": "1.07",
+   "files": [
+    "app/static/index.html",
+    "docs/index.html"
+   ]
+  },
+  "jichul": {
+   "name": "지출계획서 자동작성",
+   "version": "1.02",
+   "files": [
+    "docs/jichul/index.html"
+   ]
+  }
+ }
+}
