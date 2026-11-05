@@ -28,3 +28,6 @@ __pycache__/
 *.pyc
 .vscode/
 Thumbs.db
+
+# 실제 제출본·설계개요 원본(시험용 로컬 복사본, 공개 저장소에 올리지 않음)
+samples/
