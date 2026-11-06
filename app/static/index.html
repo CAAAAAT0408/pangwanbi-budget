@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>판관비 예산안 자동작성_v1.0</title>
+<title>판관비 예산안 자동작성_v1.1</title>
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--line:#d9dde3;--ink:#1d2330;--sub:#5b6474;--accent:#1f5fbf;--accent2:#e8f0fc;
   --warn:#9a5b00;--warnbg:#fff6e5;--ok:#1b7f3b;--okbg:#e9f7ee;--err:#b42318;--errbg:#fdecea;--in:#fff8e1;--auto:#eef7e9}
@@ -132,7 +132,7 @@ details.more[open]>summary:before{content:"▾ "}
 </style>
 </head>
 <body>
-<header><h1>판관비 예산안 자동작성<span class="ver" style="font-size:.6em;font-weight:normal;opacity:.75;margin-left:6px">_v1.0</span></h1><span>현장 조건 입력 → 기준안대로 계산 → 회사 「사업비 예산편성 양식」 그대로 엑셀</span>
+<header><h1>판관비 예산안 자동작성<span class="ver" style="font-size:.6em;font-weight:normal;opacity:.75;margin-left:6px">_v1.1</span></h1><span>현장 조건 입력 → 기준안대로 계산 → 회사 「사업비 예산편성 양식」 그대로 엑셀</span>
   <span class="hint" id="share" style="color:#c7d1e3"></span><a href="/jichul/" style="color:#ffd27a;margin-left:auto;font-size:13px;text-decoration:none">지출계획서 자동작성 →</a></header>
 <main>
 
@@ -591,7 +591,7 @@ function guessKinds(f) {        // 예전 화면에서 입력하던 값: 날짜�
   const o = idx(f['오픈']);
   if (o) out.push(o >= S.year * 12 ? 'new' : 'remain');
   if (idx(f['입주']) || idx(f['사전점검'])) out.push('movein');
-  if (idx(f['사무실시작'])) out.push('office');
+  if (idx(f['사무실시작']) || f['사무실연중'] === 'Y') out.push('office');
   return out;
 }
 function restoreDraft() {
@@ -612,7 +612,7 @@ function ready() {
   const d = collect();
   if (!d || !d.kinds.length) return false;
   const tot = d.types.reduce((a, t) => a + (+t[1] || 0), 0);
-  const has = d.fields['오픈'][0] || d.fields['입주'][0] || d.fields['사전점검'][0] || d.fields['사무실시작'][0];
+  const has = d.fields['오픈'][0] || d.fields['입주'][0] || d.fields['사전점검'][0] || d.fields['사무실시작'][0] || d.fields['사무실연중'] === 'Y';
   return tot > 0 && has;
 }
 
@@ -634,7 +634,7 @@ function invalidatePreview() {
 
 async function calc() {
   if (S.busy) { S.again = true; return; }
-  if (!ready()) { $('#cstat').innerHTML = '<span class="tag warn">현장 구분, 세대수, 오픈월(또는 입주·분양사무실 시작월)을 넣으면 계산합니다</span>'; return; }
+  if (!ready()) { $('#cstat').innerHTML = '<span class="tag warn">현장 구분, 세대수, 오픈월(또는 입주·분양사무실 시작월이나 연중 운영)을 넣으면 계산합니다</span>'; return; }
   S.busy = true;
   $('#bCalc').disabled = true;
   $('#cstat').innerHTML = '<span class="spin"></span> 이 PC 의 Excel 로 계산 중…';

@@ -56,7 +56,7 @@ def _resolve(wb, v):
 KIND_LABELS = [("new", "신규분양", "올해(또는 내년 1월) 견본주택 오픈"),
                ("remain", "잔여분양", "이미 오픈한 현장 — M/H·조직분양 계속"),
                ("movein", "입주", "사전점검·입주"),
-               ("office", "분양사무실", "M/H 철거 뒤 분양사무실 운영")]
+               ("office", "분양사무실", "분양사무실만 운영(1년 내내 포함) 또는 M/H 철거 뒤 운영")]
 _NR, _N, _R, _M, _O = "new remain", "new", "remain", "movein", "office"
 FIELD_TAGS = {
     "오픈": _NR, "사전영업": _N, "MH종료": _NR, "목표분양률": _NR, "전년분양": "remain movein", "분양대행": _NR,
@@ -70,7 +70,7 @@ FIELD_TAGS = {
     "무이자": _NR, "최고이율": _NR,
     "사전점검": _M, "입주": _M, "지정기간": _M, "전년입주": _M, "입주율": _M, "시행사2": _M, "입주촉진": _M,
     "숙소입주": _M, "입주PC": _M, "어린이집": _M, "입주안내": _M,
-    "사무실시작": _O, "사무실종료": _O, "통합센터": _O, "사무실복합기": _O, "사무실보안": _O,
+    "사무실연중": _O, "사무실시작": _O, "사무실종료": _O, "통합센터": _O, "사무실복합기": _O, "사무실보안": _O,
 }
 
 
@@ -93,7 +93,7 @@ def guess_kinds(fields, year):
         out.append("new" if o >= year * 12 else "remain")
     if idx(fields.get("입주") or [None, None]) or idx(fields.get("사전점검") or [None, None]):
         out.append("movein")
-    if idx(fields.get("사무실시작") or [None, None]):
+    if idx(fields.get("사무실시작") or [None, None]) or fields.get("사무실연중") == "Y":
         out.append("office")
     return out
 

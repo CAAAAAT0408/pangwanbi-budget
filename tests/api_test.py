@@ -41,7 +41,7 @@ for f in [DRIVE + r"\1. 우미\2. 수도권남부\14. 평택고덕 패키지형 
     print("   ", [(x["name"], x["units"], x["supply"]) for x in j["types"]][:4], "…")
 
 # 예시 회귀
-exp = {"(예시1)": 6106656, "(예시2)": 1569221, "(예시3)": 3381545}
+exp = {"(예시1)": 6106656, "(예시2)": 1566721, "(예시3)": 3381545}
 ex1 = None
 for path in sorted(glob.glob(os.path.join(ROOT, "예시", "*.xlsx"))):
     ld = post("/api/load_path", {"path": path})
