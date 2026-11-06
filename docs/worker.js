@@ -1,6 +1,6 @@
 // 브라우저 안에서 Python(Pyodide)을 띄워 판관비 예산안 엔진을 돌린다 (모듈 워커). 파일은 브라우저 밖으로 나가지 않는다.
 import { loadPyodide } from 'https://cdn.jsdelivr.net/npm/@bentopdf/pymupdf-wasm@0.11.16/assets/pyodide.js';
-const VERSION = '2026.11.06.1500';
+const VERSION = '2026.11.06.1607';
 // PyMuPDF(설계개요 PDF 읽기)가 들어 있는 Pyodide 묶음 (Python 3.13)
 const PYODIDE = 'https://cdn.jsdelivr.net/npm/@bentopdf/pymupdf-wasm@0.11.16/assets/';
 const PYMUPDF = PYODIDE + 'pymupdf-1.26.3-cp313-none-pyodide_2025_0_wasm32.whl';

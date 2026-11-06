@@ -2,12 +2,19 @@
  "pages": {
   "budget": {
    "name": "판관비 예산안 자동작성(연간 예산안)",
-   "version": "1.2",
+   "version": "1.3",
    "files": [
     "app/static/index.html",
     "docs/index.html"
    ],
    "changelog": [
+    {
+     "version": "1.3",
+     "date": "2026-11-06",
+     "changes": [
+      "연말 최종 분양률이 12월에 꼭 맞게 — 최초 분양률 기본 30%(자동 칸, 비워도 됨), 과거 곡선 대신 항상 안분, 12월이 첫 계약월이면 바로 최종"
+     ]
+    },
     {
      "version": "1.2",
      "date": "2026-11-06",
