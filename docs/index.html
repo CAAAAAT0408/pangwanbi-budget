@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>판관비 예산안 자동작성 (웹)_v1.1</title>
+<title>판관비 예산안 자동작성 (웹)_v1.2</title>
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--line:#d9dde3;--ink:#1d2330;--sub:#5b6474;--accent:#1f5fbf;--accent2:#e8f0fc;
   --warn:#9a5b00;--warnbg:#fff6e5;--ok:#1b7f3b;--okbg:#e9f7ee;--err:#b42318;--errbg:#fdecea;--in:#fff8e1;--auto:#eef7e9}
@@ -109,6 +109,7 @@ details.more[open]>summary:before{content:"▾ "}
 #sum td.yr{background:#f0f6ff;font-weight:bold}
 #sum td .fx{display:none;font-size:10.5px;color:var(--sub);white-space:nowrap;font-family:Consolas,"Malgun Gothic",monospace;text-align:right}
 #sum.fx tr.d td .fx{display:block}
+#sum td.sub{white-space:nowrap;color:var(--sub);font-weight:bold;vertical-align:top}
 #sum td[title],.pvt td[title]{cursor:help}
 #rates td{font-size:12px}
 .big{font-size:20px;font-weight:bold;color:#b42318}
@@ -141,7 +142,7 @@ details.more[open]>summary:before{content:"▾ "}
 </style>
 </head>
 <body>
-<header><h1>판관비 예산안 자동작성<span class="ver" style="font-size:.6em;font-weight:normal;opacity:.75;margin-left:6px">_v1.1</span></h1><span>현장 조건 입력 → 기준안대로 계산 → 회사 「사업비 예산편성 양식」 그대로 엑셀</span>
+<header><h1>판관비 예산안 자동작성<span class="ver" style="font-size:.6em;font-weight:normal;opacity:.75;margin-left:6px">_v1.2</span></h1><span>현장 조건 입력 → 기준안대로 계산 → 회사 「사업비 예산편성 양식」 그대로 엑셀</span>
   <span class="hint" id="share" style="color:#c7d1e3">웹판 — 입력한 값과 파일은 서버로 가지 않고 브라우저 안에서 계산합니다</span><a href="jichul/" style="color:#ffd27a;margin-left:auto;font-size:13px;text-decoration:none">지출계획서 자동작성 →</a></header>
 <main>
 <div id="banner" class="msg warn hidden"></div>
@@ -181,7 +182,7 @@ details.more[open]>summary:before{content:"▾ "}
   <div class="kinds" id="kinds" style="margin-top:6px"></div>
   <div class="kindhint" id="kindhint">먼저 위에서 현장 구분(신규분양 · 잔여분양 · 입주 · 분양사무실)을 고르세요.</div>
   <div id="form"></div>
-  <details class="sec" open id="planSec"><summary>9. 월별 분양·입주 세대 <span class="tag">비워 두면 자동 곡선 — 계산하면 연한 글씨로 자동값이 보입니다</span></summary>
+  <details class="sec" open id="planSec"><summary>9. 월별 분양·입주 세대 <span class="tag">비워 두면 자동(분양: 최초·연말 최종 분양률로 안분, 최초를 비우면 과거 사례 곡선 / 입주: 곡선) — 계산하면 연한 글씨로 자동값이 보입니다</span></summary>
     <div class="scroll" style="padding:4px 14px 12px"><table id="plan"></table></div>
   </details>
 </section>
@@ -245,7 +246,7 @@ const fmtv = v => (v === null || v === undefined) ? '' : (typeof v === 'number' 
 
 // ───────────── 웹판: 서버 대신 브라우저 안 Python(워커, Pyodide)이 /api/… 와 같은 일을 한다
 const WEB = true;
-const VERSION = '2026.11.06.1337';
+const VERSION = '2026.11.06.1500';
 const EXAMPLES = [     // docs/examples/ 에 같이 올려 둔 작성 예시 (tool/sync_web.py 가 복사)
   {file: '(예시1) 신규분양 - 27.04 오픈 C급 조직분양.xlsx', name: '예시1 신규분양(27.04 오픈)', year: 2027, total: 6106656},
   {file: '(예시2) 입주현장 - 27.05 사전점검, 27.06 입주.xlsx', name: '예시2 입주현장', year: 2027, total: 1569221},
@@ -594,6 +595,7 @@ function collect() {
   });
   const monthly = {분양: Array(12).fill(null), 입주: Array(12).fill(null), 전년분양: [null, null, null], 전년입주: [null, null, null]};
   $$('#plan input').forEach(e => { if (e.value !== '' && !e.closest('tr').classList.contains('hidden')) monthly[e.dataset.m][+e.dataset.i] = +e.value; });
+  fields['잔여운영'] = (S.kinds.includes('remain') && !(fields['오픈'] || [])[0]) ? 'Y' : 'N';   // 잔여분양에서 오픈월을 비우면 1월부터 운영 중으로 계산
   return {fields, types, monthly, kinds: [...S.kinds]};
 }
 
@@ -686,7 +688,7 @@ function ready() {
   const d = collect();
   if (!d || !d.kinds.length) return false;
   const tot = d.types.reduce((a, t) => a + (+t[1] || 0), 0);
-  const has = d.fields['오픈'][0] || d.fields['입주'][0] || d.fields['사전점검'][0] || d.fields['사무실시작'][0] || d.fields['사무실연중'] === 'Y';
+  const has = d.fields['오픈'][0] || d.fields['잔여운영'] === 'Y' || d.fields['입주'][0] || d.fields['사전점검'][0] || d.fields['사무실시작'][0] || d.fields['사무실연중'] === 'Y';
   return tot > 0 && has;
 }
 
@@ -708,7 +710,7 @@ function invalidatePreview() {
 
 async function calc() {
   if (S.busy) { S.again = true; return; }
-  if (!ready()) { $('#cstat').innerHTML = '<span class="tag warn">현장 구분, 세대수, 오픈월(또는 입주·분양사무실 시작월이나 연중 운영)을 넣으면 계산합니다</span>'; return; }
+  if (!ready()) { $('#cstat').innerHTML = '<span class="tag warn">현장 구분, 세대수, 오픈월(잔여분양은 비워도 됨 — 1월부터 계산 / 또는 입주·분양사무실 시작월이나 연중 운영)을 넣으면 계산합니다</span>'; return; }
   S.busy = true;
   $('#bCalc').disabled = true;
   $('#cstat').innerHTML = '<span class="spin"></span> 이 PC 의 Excel 로 계산 중…';
@@ -737,6 +739,26 @@ function stageClass(s) {
   return 's-' + s;
 }
 
+function subBlocks(g, gi, j) {      // 같은 세목(회사 양식 세목 열)의 자동 줄을 한 묶음으로 — tool/site_io.sub_blocks 와 같은 규칙
+  const out = [], idx = {};
+  g.rows.forEach((r, ri) => {
+    if (!r.total && !(r.manual && r.g)) return;
+    const fx = (j.formulas && j.formulas[gi] && j.formulas[gi][ri]) || null;
+    const key = r.manual ? null : (r.sub || '');
+    let b = key === null ? null : idx[key];
+    if (!b) {
+      b = {sub: r.sub || '', texts: [], months: Array(12).fill(0), total: 0, parts: Array.from({length: 12}, () => []), manual: !!r.manual};
+      out.push(b);
+      if (key !== null) idx[key] = b;
+    }
+    b.texts.push(r.g || '(직접입력)');
+    b.total += r.total || 0;
+    r.months.forEach((m, mi) => { if (m) { b.months[mi] += m; b.parts[mi].push(fx && fx[mi] ? fx[mi] : String(Math.round(m))); } });
+  });
+  out.forEach(b => { b.fx = b.parts.map(p => (p.length && (p.length > 1 || /[^\d.\-]/.test(p[0]))) ? p.join('+') : null); delete b.parts; });
+  return out;
+}
+
 function fxCell(m, f) {          // 월별 금액 칸: 산식(계산 수식)이 있으면 마우스 올림 설명 + '수식 보기' 때 금액 아래 표시
   if (!f) return `<td class="num">${k(m)}</td>`;
   return `<td class="num" title="=${esc(f)}"><span class="v">${k(m)}</span><span class="fx">=${esc(f)}</span></td>`;
@@ -756,13 +778,11 @@ function renderResult(j) {
   let h = `<tr><th>항목</th><th>세목</th><th>${yy}년 예산</th>` + [...Array(12)].map((_, i) => `<th>${i + 1}월</th>`).join('') + '</tr>';
   j.groups.forEach((g, gi) => {
     if (!g.total && !g.rows.some(r => r.manual && r.total)) return;
-    h += `<tr class="g" data-g="${gi}"><td class="it">${esc(g.item)}</td><td>${esc(g.sub)}</td><td class="num yr">${k(g.total)}</td>`
+    h += `<tr class="g" data-g="${gi}"><td class="it">${esc(g.item)}</td><td>${esc([...new Set(subBlocks(g, gi, j).map(b => b.sub).filter(Boolean))].join(' · '))}</td><td class="num yr">${k(g.total)}</td>`
        + g.months.map(m => `<td class="num">${k(m)}</td>`).join('') + '</tr>';
-    g.rows.forEach((r, ri) => {
-      if (!r.total) return;
-      const fx = (j.formulas && j.formulas[gi] && j.formulas[gi][ri]) || null;      // 줄의 12개월 산식(없으면 null)
-      h += `<tr class="d ${r.manual ? 'man' : ''} hidden" data-p="${gi}"><td colspan="2" class="gtxt">${esc(r.g || '(직접입력)')}</td>`
-         + `<td class="num">${k(r.total)}</td>` + r.months.map((m, mi) => fxCell(m, fx && fx[mi])).join('') + '</tr>';
+    subBlocks(g, gi, j).forEach(b => {          // 같은 세목은 한 줄(한 칸) — 회사 양식 결과물과 같게
+      h += `<tr class="d ${b.manual ? 'man' : ''} hidden" data-p="${gi}"><td class="sub">${esc(b.sub)}</td><td class="gtxt">${b.texts.map(esc).join('<br>')}</td>`
+         + `<td class="num">${k(b.total)}</td>` + b.months.map((m, mi) => fxCell(m, b.fx[mi])).join('') + '</tr>';
     });
   });
   h += `<tr class="tot"><td colspan="2">합 계</td><td class="num">${k(j.total.total)}</td>` + j.total.months.map(m => `<td class="num">${k(m)}</td>`).join('') + '</tr>';
@@ -800,7 +820,8 @@ function previewHtml(j) {
     if (last && last.item === g.item) last.rows.push(g); else items.push({item: g.item, rows: [g]});
   });
   items.forEach(it => {
-    it.rows.forEach((g, i) => h += `<tr><td>${i ? '' : esc(it.item)}</td><td>${esc(g.sub)}</td><td class="num">${k(g.total)}</td></tr>`);
+    let i = 0;
+    it.rows.forEach(g => subBlocks(g, j.groups.indexOf(g), j).forEach(b => { h += `<tr><td>${i ? '' : esc(it.item)}</td><td>${esc(b.sub)}</td><td class="num">${k(b.total)}</td></tr>`; i++; }));
     h += `<tr class="sub"><td></td><td>소 계</td><td class="num">${k(it.rows.reduce((a, g) => a + g.total, 0))}</td></tr>`;
   });
   h += `<tr class="tot"><td colspan="2">합 계</td><td class="num">${k(j.total.total)}</td></tr></table>`;
@@ -808,11 +829,9 @@ function previewHtml(j) {
   j.groups.forEach((g, gi) => {
     if (!g.total) return;
     let first = true;
-    g.rows.forEach((r, ri) => {
-      if (!r.total) return;
-      const fx = (j.formulas && j.formulas[gi] && j.formulas[gi][ri]) || null;
-      h += `<tr><td>${first ? esc(g.item) : ''}</td><td>${first ? esc(g.sub) : ''}</td><td class="num">${k(r.total)}</td><td class="g">${esc(r.g)}</td><td class="num">${k(r.total)}</td>`
-         + r.months.map((m, mi) => fx && fx[mi] ? `<td class="num" title="=${esc(fx[mi])}">${k(m)}</td>` : `<td class="num">${k(m)}</td>`).join('') + '</tr>';
+    subBlocks(g, gi, j).forEach(b => {
+      h += `<tr><td>${first ? esc(g.item) : ''}</td><td>${esc(b.sub)}</td><td class="num">${k(b.total)}</td><td class="g">${b.texts.map(esc).join('\n')}</td><td class="num">${k(b.total)}</td>`
+         + b.months.map((m, mi) => b.fx[mi] ? `<td class="num" title="=${esc(b.fx[mi])}">${k(m)}</td>` : `<td class="num">${k(m)}</td>`).join('') + '</tr>';
       first = false;
     });
     h += `<tr class="sub"><td></td><td>소 계</td><td class="num">${k(g.total)}</td><td></td><td class="num">${k(g.total)}</td>` + g.months.map(m => `<td class="num">${k(m)}</td>`).join('') + '</tr>';

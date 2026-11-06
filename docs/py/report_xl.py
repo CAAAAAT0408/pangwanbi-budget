@@ -14,6 +14,7 @@ import re
 
 from lxml import etree
 
+import site_io
 import xlsxio as X
 from xlsxio import q, NS, RNS, PNS, CNS, col2num, num2col, cell_key
 from report import DATA_SHEET, L, _txt, _find, _lines, xround, _groups_by_size, _distribute
@@ -427,6 +428,8 @@ def fill_budget(sh, kit, res, title, date_txt, site, keep_interest=False):
             rows = [r for r in g['rows'] if not r['manual']][:1]
         if rows:
             groups.append((g, rows))
+    # 같은 세목(회사 양식 세목 열)의 자동 줄은 한 줄(한 칸)로 — report.fill_budget 과 같게
+    groups = [(g, site_io.sub_blocks(rows)) for g, rows in groups]
     layout, kinds = [], []
     for gi, (g, rows) in enumerate(groups):
         for k, r in enumerate(rows):
@@ -437,16 +440,18 @@ def fill_budget(sh, kit, res, title, date_txt, site, keep_interest=False):
     a, b = rebuild(sh, T['first'], T['tot'] - 1, layout)
     tot_row = b + 1
     out, subs, sub_of, start_of = [], [], {}, {}
+    blocks = []
     for i, (kind, gi, k, r) in enumerate(kinds):
         rr = a + i
         g = groups[gi][0]
         if kind == 'row':
             start_of.setdefault(gi, rr)
+            blocks.append((g, r['sub'], rr, r))
             fx = r.get('fx') or [None] * 12
             months = [('=' + f) if f else ('' if not m else m) for m, f in zip(r['months'], fx)]   # 산식이 있으면 수식으로
-            out.append([g['item'] if k == 0 else '', '', g['sub'] if k == 0 else '', '', f'=I{rr}', ' ' + r['g'].strip(),
+            out.append([g['item'] if k == 0 else '', '', r['sub'], '', f'=I{rr}', '\n'.join(' ' + t for t in r['text'].split('\n')),
                         '', f'=SUM(J{rr}:U{rr})'] + months)
-            set_row_height(sh, rr, 19.5 if _lines(r['g']) == 1 else 15 * _lines(r['g']) + 6)
+            set_row_height(sh, rr, 19.5 if _lines(r['text']) == 1 else 15 * _lines(r['text']) + 6)
         else:
             s0 = start_of[gi]
             sums = [f'=SUM({L(10 + j)}{s0}:{L(10 + j)}{rr - 1})' for j in range(12)]
@@ -473,7 +478,7 @@ def fill_budget(sh, kit, res, title, date_txt, site, keep_interest=False):
     put(sh, hr - 1, 1, f'[ {site} ]')
     labels = res.get('stage') or []
     write_block(sh, hr - 1, [[x or '' for x in labels]], 'J', 'U')
-    return dict(groups=[(groups[gi][0], start_of[gi], sub_of[gi]) for gi in range(len(groups))], total=tot_row, header=hr)
+    return dict(groups=[(groups[gi][0], start_of[gi], sub_of[gi]) for gi in range(len(groups))], blocks=blocks, total=tot_row, header=hr)
 
 
 # ── 예산안 보고서 ─────────────────────────────────────────────────
@@ -484,12 +489,12 @@ def fill_report(sh, budget_name, binfo, title, date_txt, site, note_txt):
     sub = _find(v, 3, lambda t: t == '소계', hr)
     tot = _find(v, 0, lambda t: t.startswith('합'), hr)
     T = dict(first=first, mid=first + 1, sub=sub, first2=sub + 1, tot=tot)
-    items = []
-    for g, s0, s1 in binfo['groups']:
+    items = []                                   # 항목마다 세목(예산 시트의 합친 줄) 하나씩 — report.fill_report 와 같게
+    for g, sub, row, _b in binfo['blocks']:
         if items and items[-1][0] == g['item']:
-            items[-1][1].append((g, s0, s1))
+            items[-1][1].append((sub, row))
         else:
-            items.append((g['item'], [(g, s0, s1)]))
+            items.append((g['item'], [(sub, row)]))
     layout, kinds = [], []
     for ii, (item, gs) in enumerate(items):
         for k, x in enumerate(gs):
@@ -506,8 +511,8 @@ def fill_report(sh, budget_name, binfo, title, date_txt, site, note_txt):
         if kind == 'row':
             if k == 0:
                 start = rr
-            g, s0, s1 = x
-            out.append([items[ii][0] if k == 0 else '', '', g['sub'], '', '', '', '', '', '',
+            sub, s1 = x
+            out.append([items[ii][0] if k == 0 else '', '', sub, '', '', '', '', '', '',
                         f'=IF(H{rr}-E{rr}=0,"",IF(E{rr}=0,100%,(H{rr}-E{rr})/E{rr}))', '',
                         f"={bq}!F{s1}",
                         f'=IF(M{rr}-H{rr}=0,"",IF(H{rr}=0,100%,(M{rr}-H{rr})/H{rr}))', note_txt, ''])
@@ -689,7 +694,30 @@ def fill_agency(book, sh, res, types):
         put(sh, gr, 1, '총 계')
     biggest = max([sum(series[k]) * price[k] for k in series] + [0])
     widen(sh, [L(i) for i in range(5, 22)], biggest)
-    return True
+    return pos
+
+
+def link_agency(bs, ag, binfo, pos):
+    """27년 예산의 분양대행수수료·조직분양 수수료·부동산MGM 줄을 '분양대행 및 촉진수수료' 시트의 계에 연결 — report.link_agency 와 같게"""
+    ref = {'대행': (pos.get(('대행', 'total')) or [None])[0], '조직': (pos.get(('조직', 'total')) or [None])[0],
+           'MGM': (pos.get(('MGM', 'asum')) or [None])[0]}
+    qn = X._qname(ag.name)
+    for g, sub, rr, b in binfo['blocks']:
+        links = [r for r in b.get('rows', []) if ref.get(r.get('link'))]
+        if not links:
+            continue
+        ids = {id(r) for r in links}
+        others = [r for r in b['rows'] if id(r) not in ids]
+        cells = []
+        for j in range(12):
+            parts = [f"{qn}!{L(10 + j)}{ref[r['link']]}*1000" for r in links]
+            for r in others:
+                m = (r.get('months') or [0] * 12)[j]
+                if m:
+                    fx = (r.get('fx') or [None] * 12)[j]
+                    parts.append(fx if fx else (str(int(m)) if float(m) == int(m) else str(m)))
+            cells.append('=' + '+'.join(parts))
+        write_block(bs, rr, [cells], 'J', 'U')
 
 
 # ── 공가세대관리비 ───────────────────────────────────────────────
@@ -833,11 +861,13 @@ def build_report(form_bytes, res, data):
     fill_report(book.sheet('예산안 보고서'), new_name, binfo, title, date_txt, site, note)
     basic = fill_basic(book.sheet('기본정보'), kit, fields, types)
     fill_rates(book.sheet('분양율,입주율'), res, basic['total'])
-    fill_agency(book, book.sheet('분양대행 및 촉진수수료'), res, types)
+    ainfo = fill_agency(book, book.sheet('분양대행 및 촉진수수료'), res, types)
     fill_vacancy(book, book.sheet('공가세대관리비'), res, types)
     fill_interest(book, book.sheet('대납이자'), res, fields, ty)
     if fields.get('무이자') == 'Y':
         link_interest(bs, book.sheet('대납이자'), binfo)
+    if ainfo:
+        link_agency(bs, book.sheet('분양대행 및 촉진수수료'), binfo, ainfo)
     for nm in ('프로젝트(수주)', '수주실패비'):
         if nm in names:
             sheet_state(book, nm, 'hidden')

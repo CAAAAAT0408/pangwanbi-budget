@@ -100,7 +100,7 @@ INPUTS = [
     ("PC", "사무실 PC 대수", "int", 6, "대", "100천원/월·대, M/H 운영 기간", None, "mh run", True),
     ("복합기", "복합기 대수", "int", 1, "대", "300천원/월·대", None, "mh run", True),
     ("프린터", "계약용 프린터 대수", "int", "K:프린터_대수", "대", "200천원/월·대, 오픈월부터", None, "mh run", False),
-    ("파쇄기", "파쇄기(세단기)", "yn", "Y", "", "300천원/월, 오픈월부터", None, "mh run", False),
+    ("파쇄기", "파쇄기(세단기)", "yn", "Y", "", "300천원/월, 사전영업 시작월부터(M/H 운영 기간)", None, "mh run", False),
     ("보안공사", "무인경비 공사비", "yn", "Y", "", "사전영업 시작월 2,000천원 (용역비 400천원/월은 M/H 운영 기간 자동)", None, "mh", False),
     ("오수관리", "오수관리 용역", "yn", "N", "", "450천원/월 — 기준안에는 있으나 과거 지출계획서는 넣지 않음", None, "mh run", False),
     ("가구", "사무용가구", "yn", "Y", "", "4,000천원, 오픈 전월(사전영업 시작월)", None, "mh", False),
@@ -513,7 +513,7 @@ def calc(data, K=None):
             if st["mh_open"] and printers:
                 c.add(f"{_won(K.get('프린터', 200))}*{printers}")
                 items.append(f"계약용 프린터({printers})")
-            if st["mh_open"] and yn("파쇄기"):
+            if st["mh"] and yn("파쇄기"):
                 c.add(_won(K.get("파쇄기", 300)))
                 items.append("파쇄기(1)")
             if c.terms:
@@ -604,12 +604,15 @@ def calc(data, K=None):
             cells["난방비"][i].add(_won(K.get("난방비", 1000)), f"난방비 {_c(K.get('난방비', 1000))}/월")
         # 통신비
         c = cells["통신비"][i]
+        post = _n(K.get("우편_기본"), 0) or 0            # 2027 작성용 기준은 통신·우편 합산 500 → 우편 기본 0(줄 없음)
         if st["mh"]:
-            c.add(_won(K.get("통신_MH", 600)), f"전화/인터넷({_c(K.get('통신_MH', 600))})")
-            c.add(_won(K.get("우편_기본", 500)), f"우편·SMS({_c(K.get('우편_기본', 500))})")
+            c.add(_won(K.get("통신_MH", 500)), f"통신요금 및 우편료({_c(K.get('통신_MH', 500))})")
+            if post:
+                c.add(_won(post), f"우편·SMS({_c(post)})")
         elif st["mv_tel"] or st["center"]:
-            c.add(_won(K.get("통신_입주", 500)), f"전화/인터넷({_c(K.get('통신_입주', 500))})")
-            c.add(_won(K.get("우편_기본", 500)), f"우편·SMS({_c(K.get('우편_기본', 500))})")
+            c.add(_won(K.get("통신_입주", 500)), f"통신요금 및 우편료({_c(K.get('통신_입주', 500))})")
+            if post:
+                c.add(_won(post), f"우편·SMS({_c(post)})")
         elif st["office"]:
             c.add(_won(K.get("사무실_통신", 200)), f"전화/인터넷({_c(K.get('사무실_통신', 200))})")
             c.add(_won(K.get("사무실_우편", 50)), f"우편({_c(K.get('사무실_우편', 50))})")

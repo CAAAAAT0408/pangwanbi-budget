@@ -389,6 +389,10 @@ class Sheet:
                 if v and re.fullmatch(r'[A-Z]+\d+', v):
                     nv = _map_sqref(v, rm)
                     e.set(attr, nv or f'{split_ref(v)[0]}{rm.start}')
+        for e in self.root.iter(q('selection')):          # activeCell 이 sqref 밖이면(행 지우기로 어긋남) Excel 이 파일을 못 연다 → sqref 를 activeCell 로
+            ac, sq = e.get('activeCell'), e.get('sqref')
+            if ac and sq and ac not in sq.split():
+                e.set('sqref', ac)
         for e in self.root.iter(q('formula'), q('formula1'), q('formula2')):
             if e.text:
                 e.text = _map_refs(e.text, rm, self.name, True)

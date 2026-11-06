@@ -59,7 +59,7 @@ KIND_LABELS = [("new", "신규분양", "올해(또는 내년 1월) 견본주택 
                ("office", "분양사무실", "분양사무실만 운영(1년 내내 포함) 또는 M/H 철거 뒤 운영")]
 _NR, _N, _R, _M, _O = "new remain", "new", "remain", "movein", "office"
 FIELD_TAGS = {
-    "오픈": _NR, "사전영업": _N, "MH종료": _NR, "목표분양률": _NR, "전년분양": "remain movein", "분양대행": _NR,
+    "오픈": _NR, "잔여운영": "auto", "사전영업": _N, "MH종료": _NR, "최초분양률": _N, "목표분양률": _NR, "전년분양": "remain movein", "분양대행": _NR,
     "조직": _NR, "조직시작": _NR, "조직종료": _NR, "조직비율": _NR, "조직단가": _NR,
     "전기미인입": _N, "주차장": _N, "MH중개": _N, "분양가용역": _N, "유니트": _NR, "숙소분양": _N, "PC": _NR,
     "복합기": "new remain movein", "보험월": _NR, "예비비율": _N, "등기월1": _NR, "등기월2": _NR,
@@ -76,7 +76,7 @@ FIELD_TAGS = {
 
 # 화면에 바로 보이는 칸. 나머지는 기본값(기준안·과거 사례)이 있어 '세부 조정'에 접어 둔다
 MAIN_FIELDS = {"현장명", "지역", "급지", "사업구분", "상품", "상가",
-               "오픈", "MH종료", "전년분양", "조직시작", "조직종료", "조직비율",
+               "오픈", "MH종료", "최초분양률", "목표분양률", "전년분양", "조직시작", "조직종료", "조직비율",
                "사전점검", "입주", "전년입주", "사무실시작", "사무실종료"}
 
 
@@ -394,6 +394,37 @@ def attach_formulas(model, data, res):
     return True
 
 
+def sub_blocks(rows):
+    """보고서·화면용: 같은 세목(sub)의 자동 줄을 한 묶음(회사 양식 한 줄·한 칸)으로 합친다. 직접입력 줄은 따로 한 묶음.
+    rows 의 각 줄: g(산출근거)·months·total·manual·sub, 있으면 fx(12개 월별 산식 문자열 또는 None).
+    → [dict(sub, texts, months(합), total, fx(12개: 줄 산식을 + 로 이은 것, 산식이 없으면 None), manual, lines(줄 수))]"""
+    blocks, index = [], {}
+    for r in rows:
+        key = None if r.get("manual") else (r.get("sub") or "")
+        b = index.get(key) if key is not None else None
+        if b is None:
+            b = dict(sub=r.get("sub") or "", texts=[], rows=[], months=[0.0] * 12, total=0.0, parts=[[] for _ in range(12)],
+                     manual=bool(r.get("manual")), lines=0)
+            blocks.append(b)
+            if key is not None:
+                index[key] = b
+        fx = r.get("fx") or [None] * 12
+        b["texts"].append(r.get("g") or "")
+        b["rows"].append(r)
+        b["lines"] += 1
+        b["total"] += float(r.get("total") or 0)
+        for j, m in enumerate(r.get("months") or []):
+            if not m:
+                continue
+            b["months"][j] += float(m)
+            b["parts"][j].append(fx[j] if fx[j] else (str(int(m)) if float(m) == int(m) else str(m)))
+    for b in blocks:
+        b["fx"] = ["+".join(p) if (p and (len(p) > 1 or not p[0].replace(".", "").lstrip("-").isdigit())) else None
+                   for p in b.pop("parts")]
+        b["text"] = "\n".join(t.strip() for t in b["texts"])
+    return blocks
+
+
 def _v(x):
     if isinstance(x, int) and x in XL_ERR:
         return XL_ERR[x]
@@ -450,7 +481,7 @@ def read_results_from(sheetnames, get2d, name_value, last_row, errors, explain=N
     explain(시트, 행, 열) → 그 칸의 산식 글(없으면 None)을 주면 결과에 formulas(묶음별·줄별 12개월 산식)를 함께 담는다."""
     bname = next(n for n in sheetnames if re.fullmatch(r"\d{2}년 예산", n))
     last = last_row(bname)
-    data = get2d(bname, f"A1:U{last}")
+    data = get2d(bname, f"A1:V{last}")       # V열 = 연동 표식(분양대행 시트)
     stage = [_v(x) or "" for x in data[4][9:21]]
     groups, cur = [], None
     fxs, cur_fx = [], None
@@ -479,7 +510,9 @@ def read_results_from(sheetnames, get2d, name_value, last_row, errors, explain=N
         manual = note == "직접입력"
         if manual and not any(isinstance(m, (int, float)) and m for m in months) and not g:
             continue
-        cur["rows"].append(dict(g=(g or "").strip(), total=_v(tot) or 0, months=months, manual=manual))
+        cur["rows"].append(dict(g=(g or "").strip(), total=_v(tot) or 0, months=months, manual=manual,
+                             sub=(sub.strip() if isinstance(sub, str) else ""),       # D열 = 회사 양식 세목
+                             link=(row[21].strip() if len(row) > 21 and isinstance(row[21], str) else "")))   # V열 = 연동 표식
         if explain is not None:
             fx = None if manual else [explain(bname, i, 10 + j) for j in range(12)]
             cur_fx.append(fx if fx and any(fx) else None)
