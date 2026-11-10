@@ -32,6 +32,8 @@ import siljeok as S                # noqa: E402
 import siljeok_samples as G        # noqa: E402
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8799/docs/siljeok/"
+if "solo" not in BASE:      # 실적계획 화면은 혼자 열리면 예산안 페이지의 실적계획 탭으로 옮겨 가므로 이 시험은 화면만(?solo) 연다 — 탭은 web_tabs_e2e.py
+    BASE += ("&" if "?" in BASE else "?") + "solo"
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 if not os.path.exists(EDGE):
     EDGE = r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"

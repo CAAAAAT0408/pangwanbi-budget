@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>판관비 예산안 자동작성_v1.4</title>
+<title>판관비 예산안 자동작성_v1.5</title>
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--line:#d9dde3;--ink:#1d2330;--sub:#5b6474;--accent:#1f5fbf;--accent2:#e8f0fc;
   --warn:#9a5b00;--warnbg:#fff6e5;--ok:#1b7f3b;--okbg:#e9f7ee;--err:#b42318;--errbg:#fdecea;--in:#fff8e1;--auto:#eef7e9}
@@ -129,12 +129,27 @@ details.more[open]>summary:before{content:"▾ "}
 #ptab td.src{color:var(--sub);font-size:11.5px}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid #c7d1e3;border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
+/* 위쪽 탭 — 판관비 예산안 / 사업관리비 실적계획을 한 페이지에서 고름(실적계획 화면은 아래 틀 #sjFrame 에 불러옴) */
+#ptabs{background:#0f1729;display:flex;align-items:flex-end;gap:4px;padding:8px 24px 0;flex-wrap:wrap}
+#ptabs .lead{color:#8d99b0;font-size:12px;align-self:center;margin-right:6px;padding-bottom:6px}
+#ptabs a.pt{color:#aab6cc;text-decoration:none;font-size:14px;font-weight:bold;padding:7px 18px;border-radius:8px 8px 0 0;background:#1a2438}
+#ptabs a.pt small{font-weight:normal;font-size:11.5px;margin-left:7px;opacity:.75}
+#ptabs a.pt:hover{color:#fff}
+#ptabs a.pt.on{color:#fff;background:#1d2b45}
+#ptabs a.pt.sj.on{background:#3b2f4d}
+#ptabs a.ext{margin-left:auto;color:#ffd27a;font-size:13px;text-decoration:none;align-self:center;padding-bottom:6px}
+#ptabs a.ext:hover{text-decoration:underline}
+#sjFrame{display:block;width:100%;border:0;flex:1 1 auto;min-height:0;background:#f4f5f7}
+html.sjmode,html.sjmode body{height:100%;overflow:hidden}
+html.sjmode body{display:flex;flex-direction:column}
+@media (max-width:760px){#ptabs{padding:6px 10px 0}#ptabs .lead,#ptabs a.pt small{display:none}#ptabs a.pt{padding:7px 12px}}
 @media (max-width:900px){.kinds{grid-template-columns:1fr 1fr}.fgrid{grid-template-columns:1fr}.f{grid-template-columns:1fr}.f .h{grid-column:1}.stage{grid-template-columns:repeat(6,1fr)}}
 </style>
 </head>
 <body>
-<header><h1>판관비 예산안 자동작성<span class="ver" style="font-size:.6em;font-weight:normal;opacity:.75;margin-left:6px">_v1.4</span></h1><span>현장 조건 입력 → 기준안대로 계산 → 회사 「사업비 예산편성 양식」 그대로 엑셀</span>
-  <span class="hint" id="share" style="color:#c7d1e3"></span><a href="/jichul/" style="color:#ffd27a;margin-left:auto;font-size:13px;text-decoration:none">지출계획서 자동작성 →</a><a href="/siljeok/" style="color:#ffd27a;font-size:13px;text-decoration:none">실적계획 자동작성 →</a></header>
+<nav id="ptabs"><span class="lead">작성할 자료</span><a class="pt on" data-p="budget" href="/">판관비 예산안<small>연간 예산 편성</small></a><a class="pt sj" data-p="siljeok" href="/#siljeok">사업관리비 실적계획<small>본사 업로드 양식</small></a><a class="ext" href="/jichul/">지출계획서 자동작성 →</a></nav>
+<header><h1>판관비 예산안 자동작성<span class="ver" style="font-size:.6em;font-weight:normal;opacity:.75;margin-left:6px">_v1.5</span></h1><span>현장 조건 입력 → 기준안대로 계산 → 회사 「사업비 예산편성 양식」 그대로 엑셀</span>
+  <span class="hint" id="share" style="color:#c7d1e3"></span></header>
 <main>
 
 <section class="card" id="c1">
@@ -216,6 +231,7 @@ details.more[open]>summary:before{content:"▾ "}
 </section>
 
 </main>
+<iframe id="sjFrame" class="hidden" title="사업관리비 실적계획 자동작성"></iframe>
 
 <div id="modal" class="hidden"><div class="box">
   <div class="head"><b id="mtitle">기준단가</b><button class="sub small local" id="mTpl">엑셀에서 열기</button><button class="small" id="mclose">닫기</button></div>
@@ -924,6 +940,42 @@ document.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') 
   } catch (e) {
     document.querySelector('main').insertAdjacentHTML('afterbegin', `<div class="msg err">${esc(e.message)}</div>`);
   }
+})();
+</script>
+<script>
+// ───────────── 위쪽 탭: 판관비 예산안 / 사업관리비 실적계획을 한 페이지에서 고름
+//  실적계획 화면(/siljeok/)은 처음 고를 때 아래 틀(iframe)에 불러온다 — 탭을 바꿔도 두 화면의 입력·올린 파일은 그대로 남는다.
+//  주소 끝이 #siljeok 이면 실적계획 탭으로 열린다(실적계획 열기.bat 의 /siljeok/ 주소로 들어와도 그 화면이 이리로 옮겨 줌).
+(function () {
+  const strip = document.getElementById('ptabs'), frame = document.getElementById('sjFrame');
+  const own = [document.querySelector('header'), document.querySelector('main')];
+  const ownTitle = document.title;
+  let cur = 'budget', budgetY = 0;
+  const frameTitle = () => { try { return frame.contentDocument.title; } catch (e) { return ''; } };
+  function show(p) {
+    const next = p === 'siljeok' ? 'siljeok' : 'budget';
+    if (next === cur) return;
+    if (cur === 'budget') budgetY = window.scrollY;
+    cur = next;
+    strip.querySelectorAll('a.pt').forEach(a => a.classList.toggle('on', a.dataset.p === cur));
+    own.forEach(el => el.classList.toggle('hidden', cur !== 'budget'));
+    frame.classList.toggle('hidden', cur !== 'siljeok');
+    document.documentElement.classList.toggle('sjmode', cur === 'siljeok');
+    if (cur === 'siljeok' && !frame.getAttribute('src')) frame.setAttribute('src', '/siljeok/' + location.search);
+    document.title = cur === 'siljeok' ? (frameTitle() || '사업관리비 실적계획 자동작성') : ownTitle;
+    history.replaceState(null, '', location.pathname + location.search + (cur === 'siljeok' ? '#siljeok' : ''));
+    if (cur === 'budget') window.scrollTo(0, budgetY);
+  }
+  strip.addEventListener('click', e => {
+    const a = e.target.closest('a.pt');
+    if (!a || e.ctrlKey || e.shiftKey || e.metaKey) return;      // Ctrl·Shift 클릭은 브라우저 새 탭·새 창으로
+    e.preventDefault();
+    show(a.dataset.p);
+  });
+  frame.addEventListener('load', () => { if (cur === 'siljeok') document.title = frameTitle() || document.title; });
+  window.addEventListener('hashchange', () => show(location.hash === '#siljeok' ? 'siljeok' : 'budget'));
+  window.showPage = show;          // 실적계획 화면(틀 안)의 「판관비 예산안」 탭 글귀가 부름
+  if (location.hash === '#siljeok') show('siljeok');
 })();
 </script>
 </body>

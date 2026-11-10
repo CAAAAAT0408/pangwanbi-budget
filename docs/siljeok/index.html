@@ -3,7 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>사업관리비 실적계획 자동작성_v1.0</title>
+<title>사업관리비 실적계획 자동작성_v1.1</title>
+<script>
+// 이 화면은 「판관비 예산안 자동작성」 페이지 위쪽의 「사업관리비 실적계획」 탭 안(틀)에 들어가 보인다 — 한 페이지에서 고름.
+// 따로 열리면(옛 주소 …/siljeok/, 실적계획 열기.bat, 즐겨찾기) 그 페이지의 실적계획 탭(…/#siljeok)으로 옮긴다. ?solo 는 시험용으로 혼자 열기.
+const EMBED = window.self !== window.top;
+if (EMBED) document.documentElement.classList.add('embed');
+else if (!/[?&]solo\b/.test(location.search)) {
+  window.SJ_MOVED = true;
+  location.replace(location.pathname.replace(/siljeok\/?(index\.html)?$/, '') + location.search + '#siljeok');
+}
+</script>
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--line:#d9dde3;--ink:#1d2330;--sub:#5b6474;--accent:#1f5fbf;--accent2:#e8f0fc;
   --warn:#9a5b00;--warnbg:#fff6e5;--ok:#1b7f3b;--okbg:#e9f7ee;--err:#b42318;--errbg:#fdecea;--in:#fff8e1;--auto:#eef7e9}
@@ -15,6 +25,8 @@ header span{color:#d6cfe3;font-size:13px}
 header nav{margin-left:auto;display:flex;gap:16px}
 header a{color:#ffd27a;font-size:13px;text-decoration:none}
 header a:hover{text-decoration:underline}
+html.embed header nav{display:none}      /* 예산안 페이지의 탭 안에서는 위쪽 탭 줄이 이동을 맡음 */
+.steps a{color:#4b2f7a;font-weight:bold}
 main{max-width:1500px;margin:0 auto;padding:18px 16px 80px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 18px;margin-bottom:16px}
 .card h2{font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -114,7 +126,7 @@ table.mon tr.tot td{background:#b4c6e7;font-weight:bold}
 </style>
 </head>
 <body>
-<header><h1>사업관리비 실적계획 자동작성<span class="ver" style="font-size:.6em;font-weight:normal;opacity:.75;margin-left:6px">_v1.0</span></h1><span>전년도 예산 + 금년도 예산안 + 전년도 사용내역 → 사내 업로드 양식 그대로 엑셀 · 실적 근거자료</span>
+<header><h1>사업관리비 실적계획 자동작성<span class="ver" style="font-size:.6em;font-weight:normal;opacity:.75;margin-left:6px">_v1.1</span></h1><span>전년도 예산 + 금년도 예산안 + 전년도 사용내역 → 사내 업로드 양식 그대로 엑셀 · 실적 근거자료</span>
   <span class="hint" id="share" style="color:#d6cfe3"></span>
   <nav><a href="../" id="toBudget">판관비 예산안 자동작성 →</a><a href="../jichul/" id="toJichul">지출계획서 자동작성 →</a></nav></header>
 <main>
@@ -123,7 +135,7 @@ table.mon tr.tot td{background:#b4c6e7;font-weight:bold}
 <section class="card" id="c1">
   <h2><span class="n">1</span>작성 기준 <span class="tag" id="tplinfo"></span></h2>
   <div class="steps">
-    <div><b>① 예산안 만들기</b> — 「판관비 예산안 자동작성」으로 내년 판관비 예산안(사업비 예산편성 엑셀)을 만듭니다.</div>
+    <div><b>① 예산안 만들기</b> — 위쪽 <a href="../" data-ptab="budget">「판관비 예산안」 탭</a>에서 내년 판관비 예산안(사업비 예산편성 엑셀)을 만들어 내려받습니다.</div>
     <div><b>② 자료 올리기</b> — 현장마다 전년도 예산 · 금년도 예산안 · 전년도 사용내역(SAP 엑셀)을 올리고, 실적에 넣을 작성자를 고릅니다.</div>
     <div><b>③ 내려받기</b> — 사내 업로드 양식(「사업관리비 실적계획」) 그대로 채운 엑셀과, 실적 칸의 근거자료 엑셀을 받습니다.</div>
   </div>
@@ -547,6 +559,10 @@ async function download(kind) {
 
 // ───────────── 시작
 (async function () {
+  if (window.SJ_MOVED) return;                 // 예산안 페이지의 실적계획 탭으로 옮기는 중
+  $$('a[data-ptab]').forEach(a => a.addEventListener('click', e => {      // 「판관비 예산안」 탭 글귀 → 위쪽 탭 바꾸기(입력은 그대로)
+    if (EMBED && window.parent.showPage) { e.preventDefault(); window.parent.showPage(a.dataset.ptab); }
+  }));
   S.mode = await detectMode();
   if (S.mode === 'web') startWorker();
   $('#toBudget').href = S.mode === 'pc' ? '/' : '../';
