@@ -23,6 +23,7 @@ tests/jichul_*.xlsx
 tests/jichul_*.pdf
 tests/web_jichul.xlsx
 tests/inner_*.xlsx
+tests/*_siljeok_form.xlsx
 
 __pycache__/
 *.pyc

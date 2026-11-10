@@ -37,6 +37,7 @@ FORMS = os.path.join(ROOT, '회사양식')             # 경영기획팀 '사업
 DOCS = os.path.join(ROOT, 'docs')                  # 지출계획서 화면(docs/jichul/index.html)은 웹판과 같은 파일
 JICHUL_SITES = os.path.join(APP, '_jichul_sites.json')
 JICHUL_ROOT = os.path.join(BUDGET_ROOT, '★ 지출계획서')   # PC 판 기본 저장 위치: ★ 지출계획서\\<현장명>\\
+SILJEOK_FORM = os.path.join(FORMS, '실적계획', '사업관리비 실적계획 양식.xlsx')   # 사내 「사업관리비 실적계획」 양식 틀(tool/build_siljeok_template.py)
 MAX_UPLOAD = 40 * 1024 * 1024
 KEEP_HOURS = 24
 IDLE_QUIT = 60            # 마지막 계산 뒤 이 초가 지나면 Excel 을 끈다
@@ -54,6 +55,7 @@ import design_overview  # noqa: E402
 import xlcalc       # noqa: E402
 import jichul       # noqa: E402
 import jichul_xlsx  # noqa: E402
+import siljeok      # noqa: E402
 
 _MODELS = {}
 _MODEL_LOCK = threading.Lock()
@@ -336,6 +338,14 @@ def fix_drive(p):
     return p
 
 
+def siljeok_template():
+    if not os.path.exists(SILJEOK_FORM):
+        raise UserError('실적계획 양식 틀이 없습니다: 회사양식\\실적계획\\사업관리비 실적계획 양식.xlsx '
+                        '(python tool\\build_siljeok_template.py "<사내 양식.xlsx>" 로 만듭니다)')
+    with open(SILJEOK_FORM, 'rb') as f:
+        return f.read()
+
+
 def sites_list():
     items = rjson(SITES, []) or []
     out = []
@@ -477,8 +487,28 @@ class Handler(BaseHTTPRequestHandler):
                     extra['Set-Cookie'] = f'k={KEY}; Path=/; Max-Age=31536000; SameSite=Lax'
                 with open(os.path.join(DOCS, 'jichul', 'index.html'), 'rb') as f:
                     return self.send(200, f.read(), 'text/html; charset=utf-8', extra)
+            if url.path in ('/siljeok', '/siljeok/', '/siljeok/index.html'):
+                extra = {}
+                if q.get('k') == KEY:
+                    extra['Set-Cookie'] = f'k={KEY}; Path=/; Max-Age=31536000; SameSite=Lax'
+                with open(os.path.join(DOCS, 'siljeok', 'index.html'), 'rb') as f:
+                    return self.send(200, f.read(), 'text/html; charset=utf-8', extra)
+            if url.path.startswith('/siljeok/examples/'):          # '예시로 해 보기' 가 받는 가짜 자료(웹판과 같은 파일)
+                fn = os.path.basename(urllib.parse.unquote(url.path[len('/siljeok/examples/'):]))
+                for folder in (os.path.join(DOCS, 'siljeok', 'examples'), os.path.join(DOCS, 'examples')):
+                    fp = os.path.join(folder, fn)
+                    if fn.lower().endswith('.xlsx') and os.path.isfile(fp):
+                        with open(fp, 'rb') as f:
+                            return self.send(200, f.read(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                return self.fail('예시 파일이 없습니다.', 404)
             if url.path.startswith('/api/jichul/'):
                 return self.jichul_get(url.path[len('/api/jichul/'):], q)
+            if url.path == '/api/siljeok/info':
+                info = {'ok': True, 'local': self.is_local(), 'template': os.path.basename(SILJEOK_FORM),
+                        'base_year': siljeok.template_year(siljeok_template())}
+                if self.is_local():
+                    info['share_url'] = f'http://{lan_ip()}:{PORT}/siljeok/?k={KEY}'
+                return self.send(200, info)
             if url.path == '/api/ping':
                 return self.send(200, {'ok': True, 'app': 'pangwanbi-budget', 'local': self.is_local()})
             if url.path == '/api/info':
@@ -551,7 +581,9 @@ class Handler(BaseHTTPRequestHandler):
                      '/api/report': self.api_report, '/api/form': self.api_form, '/api/types': self.api_types,
                      '/api/jichul/calc': self.jichul_calc, '/api/jichul/xlsx': self.jichul_xlsx, '/api/jichul/save': self.jichul_save,
                      '/api/jichul/load': self.jichul_load, '/api/jichul/load_path': self.jichul_load_path,
-                     '/api/jichul/open': self.jichul_open}
+                     '/api/jichul/open': self.jichul_open,
+                     '/api/siljeok/parse': self.siljeok_parse, '/api/siljeok/plan': self.siljeok_plan,
+                     '/api/siljeok/form': self.siljeok_form, '/api/siljeok/evidence': self.siljeok_evidence}
             if url.path in route:
                 return route[url.path]()
             if url.path == '/api/shutdown' and self.is_local():
@@ -561,6 +593,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             return self.fail('없는 주소입니다.', 404)
         except UserError as e:
+            return self.fail(str(e))
+        except siljeok.SiljeokError as e:
             return self.fail(str(e))
         except apply_kijun.ApplyError as e:
             return self.fail(str(e))
@@ -670,6 +704,40 @@ class Handler(BaseHTTPRequestHandler):
             raise UserError('열 수 없는 경로입니다.')
         os.startfile(p)
         self.send(200, {'ok': True})
+
+    # ---------------------------------------------------------------- 사업관리비 실적계획
+    def siljeok_parse(self):
+        """올린 엑셀 한 개(예산안 또는 SAP 사용내역)를 읽어 돌려준다 — 서버에는 남기지 않는다"""
+        files, _ = parse_multipart(self.headers.get('Content-Type', ''), self.body())
+        if 'file' not in files:
+            raise UserError('엑셀 파일을 넣어 주세요.')
+        name, data = files['file']
+        if not name.lower().endswith('.xlsx'):
+            raise UserError('엑셀(.xlsx) 파일이어야 합니다. .xls 파일은 Excel 에서 .xlsx 로 저장한 뒤 올려 주세요.')
+        t = time.time()
+        r = siljeok.parse_file(data, name)
+        log.info('siljeok parse %s %s %.1fs', r.get('kind'), name, time.time() - t)
+        self.send(200, {'ok': True, **r})
+
+    def siljeok_plan(self):
+        self.send(200, siljeok.slim(siljeok.plan(self.jbody().get('state') or {})))
+
+    def _siljeok_xlsx(self, build, default):
+        req = self.jbody()
+        out = build(req.get('state') or {})
+        name = safe_name(req.get('name') or default)
+        if not name.lower().endswith('.xlsx'):
+            name += '.xlsx'
+        log.info('siljeok %s %s %s bytes', default, name, len(out))
+        self.send(200, out, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                  {'Content-Disposition': "attachment; filename*=UTF-8''" + urllib.parse.quote(name)})
+
+    def siljeok_form(self):
+        tpl = siljeok_template()
+        self._siljeok_xlsx(lambda st: siljeok.build_form(tpl, st), '사업관리비 실적계획 양식')
+
+    def siljeok_evidence(self):
+        self._siljeok_xlsx(siljeok.build_evidence, '실적 근거자료')
 
     def api_calc(self):
         req = self.jbody()

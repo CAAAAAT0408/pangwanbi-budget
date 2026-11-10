@@ -2,6 +2,7 @@
 
   python control.py open        서버가 꺼져 있으면 창 없이 켜고 브라우저를 연다
   python control.py open jichul 같은 서버의 지출계획서 화면(/jichul/)을 연다
+  python control.py open siljeok 같은 서버의 사업관리비 실적계획 화면(/siljeok/)을 연다
   python control.py start | stop | status
   python control.py autostart-on | autostart-off
 """

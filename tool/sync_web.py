@@ -11,7 +11,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOL = os.path.join(ROOT, "tool")
 DOCS = os.path.join(ROOT, "docs")
 PY = ["xlcalc.py", "params.py", "kijun_parser.py", "build_template.py", "site_io.py", "xlsxio.py",
-      "report.py", "report_xl.py", "design_overview.py", "jichul.py", "jichul_xlsx.py"]
+      "report.py", "report_xl.py", "design_overview.py", "jichul.py", "jichul_xlsx.py", "siljeok.py"]
+SILJEOK_FORM = os.path.join(ROOT, "회사양식", "실적계획", "사업관리비 실적계획 양식.xlsx")    # 사내 「사업관리비 실적계획」 양식 틀
 
 
 def latest_template():
@@ -36,6 +37,8 @@ def main():
     forms = sorted(glob.glob(os.path.join(ROOT, "회사양식", "*.xlsx")))
     forms = [f for f in forms if not os.path.basename(f).startswith("~$")]
     shutil.copyfile(forms[-1], os.path.join(DOCS, "data", "form.xlsx"))
+    if os.path.exists(SILJEOK_FORM):               # 실적계획 웹판이 쓰는 양식 틀(tool/build_siljeok_template.py 가 만든 것)
+        shutil.copyfile(SILJEOK_FORM, os.path.join(DOCS, "data", "siljeok_form.xlsx"))
     os.makedirs(os.path.join(DOCS, "examples"), exist_ok=True)
     for ex in glob.glob(os.path.join(ROOT, "예시", "*.xlsx")):
         if not os.path.basename(ex).startswith("~$"):
@@ -53,7 +56,8 @@ def main():
         json.dump(dict(template=os.path.basename(tpl), form=os.path.basename(forms[-1]), year=year,
                        synced=datetime.datetime.now().strftime("%Y-%m-%d %H:%M")), f, ensure_ascii=False, indent=1)
     ver = datetime.datetime.now().strftime("%Y.%m.%d.%H%M")
-    for fn in ("worker.js", "index.html", os.path.join("jichul", "worker.js"), os.path.join("jichul", "index.html")):
+    for fn in ("worker.js", "index.html", os.path.join("jichul", "worker.js"), os.path.join("jichul", "index.html"),
+               os.path.join("siljeok", "worker.js"), os.path.join("siljeok", "index.html")):
         p = os.path.join(DOCS, fn)
         s = open(p, encoding="utf-8").read()
         s2 = re.sub(r"const VERSION = '[^']*'", f"const VERSION = '{ver}'", s)

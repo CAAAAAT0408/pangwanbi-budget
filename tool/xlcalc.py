@@ -16,7 +16,7 @@ import datetime
 import io
 import math
 import re
-from decimal import Decimal, ROUND_HALF_UP, ROUND_UP, ROUND_DOWN
+from decimal import Decimal, ROUND_HALF_UP, ROUND_UP, ROUND_DOWN, ROUND_FLOOR
 
 EPOCH = datetime.datetime(1899, 12, 30)
 
@@ -334,7 +334,8 @@ def compare(a, b):
 
 
 def _dec(x):
-    return Decimal(repr(float(x)))
+    """Excel 은 반올림·버림 전에 값을 유효숫자 15자리로 본다(2진 오차 제거): ROUNDUP(3.0000000000000004,0)=3, INT(434.99999999999994)=435"""
+    return Decimal(format(float(x), ".15g"))
 
 
 def xround(x, n=0, mode=ROUND_HALF_UP):
@@ -736,7 +737,7 @@ class Model:
         if name == "ROUNDDOWN":
             return xround(num(sc(0)), num(sc(1)) if len(args) > 1 else 0, ROUND_DOWN)
         if name == "INT":
-            return float(math.floor(num(sc(0))))
+            return float(_dec(num(sc(0))).to_integral_value(rounding=ROUND_FLOOR))
         if name == "ABS":
             return abs(num(sc(0)))
         if name == "MOD":

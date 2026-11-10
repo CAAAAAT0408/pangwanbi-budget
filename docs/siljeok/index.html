@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>사업관리비 실적계획 자동작성_v1.0</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--line:#d9dde3;--ink:#1d2330;--sub:#5b6474;--accent:#1f5fbf;--accent2:#e8f0fc;
+  --warn:#9a5b00;--warnbg:#fff6e5;--ok:#1b7f3b;--okbg:#e9f7ee;--err:#b42318;--errbg:#fdecea;--in:#fff8e1;--auto:#eef7e9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Malgun Gothic","맑은 고딕",sans-serif}
+header{background:#3b2f4d;color:#fff;padding:14px 24px;display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+header h1{font-size:19px;margin:0}
+header span{color:#d6cfe3;font-size:13px}
+header nav{margin-left:auto;display:flex;gap:16px}
+header a{color:#ffd27a;font-size:13px;text-decoration:none}
+header a:hover{text-decoration:underline}
+main{max-width:1500px;margin:0 auto;padding:18px 16px 80px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 18px;margin-bottom:16px}
+.card h2{font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card h2 .n{background:var(--accent);color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+input[type=text],input[type=number],select,textarea{font:inherit;border:1px solid var(--line);border-radius:5px;padding:4px 7px;background:#fff;color:var(--ink)}
+input[type=number]{text-align:right}
+button,.btn{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:6px;padding:6px 14px;cursor:pointer;display:inline-block}
+button.sub,.btn.sub{background:#fff;color:var(--accent)}
+button.small,.btn.small{padding:3px 9px;font-size:12px}
+button:disabled{opacity:.5;cursor:default}
+.btn input{display:none}
+.hint{color:var(--sub);font-size:12px}
+.hidden{display:none!important}
+.tag{display:inline-block;border-radius:10px;padding:0 9px;font-size:12px;background:#eef1f5;color:var(--sub);font-weight:normal}
+.tag.ok{background:var(--okbg);color:var(--ok)}.tag.warn{background:var(--warnbg);color:var(--warn)}.tag.err{background:var(--errbg);color:var(--err)}
+.msg{border-radius:6px;padding:8px 12px;margin:10px 0 0}
+.msg.ok{background:var(--okbg);color:var(--ok)}.msg.warn{background:var(--warnbg);color:var(--warn);border:1px solid #f0d9a8}.msg.err{background:var(--errbg);color:var(--err)}
+.msg ul{margin:4px 0 0;padding-left:20px}
+.msg a.x{float:right;cursor:pointer;color:inherit;opacity:.6;text-decoration:none;margin-left:10px}
+.steps{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.steps div{background:#f6f3fa;border:1px solid #e1d9ee;border-radius:8px;padding:7px 12px;font-size:13px;flex:1;min-width:240px}
+.steps b{color:#4b2f7a}
+#year{width:84px;background:var(--in);font-weight:bold}
+/* 현장 */
+.site{border:1px solid #c9cfda;border-radius:8px;padding:12px 14px 14px;margin:0 0 14px;background:#fbfcfd}
+.shead{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
+.shead .sno{background:#3b2f4d;color:#fff;border-radius:12px;padding:1px 12px;font-size:13px}
+.shead input{background:var(--in)}
+.shead .sname{width:330px}.shead .scode{width:86px;text-transform:uppercase}
+.shead .stitle{font-family:Consolas,"Malgun Gothic",monospace}
+a.del{color:var(--err);cursor:pointer;font-size:12px;margin-left:auto}
+.slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.slot{border:2px dashed #c3cad6;border-radius:8px;padding:9px 12px 10px;background:#fff;min-height:104px}
+.slot.over{border-color:var(--accent);background:var(--accent2)}
+.slot.has{border-style:solid;border-color:#9db8e6}
+.slot .st{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin:0 0 6px}
+.slot .st b{font-size:14px}
+.slot .st small{color:var(--sub)}
+.slot .pick{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.file{display:flex;gap:6px;align-items:baseline;border-top:1px dashed #e3e7ec;margin-top:6px;padding-top:5px;font-size:12.5px}
+.file .fn{font-weight:bold;word-break:break-all}
+.file .fi{color:var(--sub)}
+.file a.x{color:var(--err);cursor:pointer;margin-left:auto;text-decoration:none;white-space:nowrap}
+.creators{border:1px solid var(--line);border-radius:7px;background:#fff;padding:8px 12px;margin:10px 0 0}
+.creators .ttl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 6px}
+.chk{display:inline-flex;gap:6px;align-items:center;cursor:pointer;padding:2px 9px;border-radius:12px;background:#fff;border:1px solid var(--line);font-size:13px;margin:2px 4px 2px 0;user-select:none}
+.chk input{width:16px;height:16px;accent-color:var(--accent)}
+.chk.on{background:var(--accent2);border-color:#9db8e6}
+.chk small{color:var(--sub)}
+.chk.new{box-shadow:0 0 0 2px #ffd27a}
+details.sec{border:1px solid var(--line);border-radius:7px;margin:10px 0 0;background:#fff}
+details.sec>summary{cursor:pointer;padding:7px 12px;font-weight:bold;list-style:none;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary:before{content:"▸";color:var(--sub);width:12px}
+details.sec[open]>summary:before{content:"▾"}
+details.sec .in{padding:2px 12px 12px}
+table{border-collapse:collapse}
+th,td{border:1px solid var(--line);padding:3px 7px;text-align:center;vertical-align:middle}
+th{background:#eef1f5;font-weight:normal;color:var(--sub);font-size:12.5px}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.l{text-align:left}
+.scroll{overflow:auto}
+table.acc{font-size:12.5px}
+table.acc select{background:var(--in);font-size:12.5px}
+table.acc tr.moved td{background:#fff8e1}
+table.acc tr.out td{color:#9aa3b2;text-decoration:line-through}
+table.acc tr.out td.keep{text-decoration:none}
+.notes label{display:grid;grid-template-columns:230px 1fr;gap:8px;align-items:center;margin:4px 0}
+.notes input{background:var(--in);width:100%}
+/* 미리보기 */
+.pv{margin:12px 0 0}
+.pv h3{font-size:14px;margin:0 0 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+table.out{width:100%;font-size:12.5px;background:#fff}
+table.out th{background:#1f3864;color:#fff;font-weight:bold;padding:4px 6px}
+table.out th.s2{background:#2e5395}
+table.out td.it{background:#f2f3f5;font-weight:bold;white-space:nowrap}
+table.out td.k{font-weight:bold}
+table.out td.pct{background:#dce6f1}
+table.out td.basis{text-align:left;white-space:pre-wrap;font-size:11.5px;min-width:300px;max-width:520px}
+table.out tr.tot td{background:#b4c6e7;font-weight:bold}
+table.out td[title]{cursor:help}
+table.out input.inc{width:104px;text-align:right;background:var(--in);font:inherit;padding:1px 4px}
+table.out td.blank{color:#9aa3b2}
+table.mon{font-size:12px;background:#fff;margin:6px 0 0}
+table.mon th{background:#2e5395;color:#fff}
+table.mon td.it{background:#f2f3f5;font-weight:bold;white-space:nowrap}
+table.mon td[title]{cursor:help}
+table.mon tr.tot td{background:#b4c6e7;font-weight:bold}
+.big{font-size:18px;font-weight:bold;color:#b42318}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid #c7d1e3;border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite;vertical-align:-2px}
+#banner{margin:0 0 14px;font-size:14px}
+#c3 .row{margin:0 0 8px}
+#c3 input[type=text]{background:var(--in)}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (max-width:1000px){.slots{grid-template-columns:1fr}.notes label{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1>사업관리비 실적계획 자동작성<span class="ver" style="font-size:.6em;font-weight:normal;opacity:.75;margin-left:6px">_v1.0</span></h1><span>전년도 예산 + 금년도 예산안 + 전년도 사용내역 → 사내 업로드 양식 그대로 엑셀 · 실적 근거자료</span>
+  <span class="hint" id="share" style="color:#d6cfe3"></span>
+  <nav><a href="../" id="toBudget">판관비 예산안 자동작성 →</a><a href="../jichul/" id="toJichul">지출계획서 자동작성 →</a></nav></header>
+<main>
+<div id="banner" class="msg warn hidden"></div>
+
+<section class="card" id="c1">
+  <h2><span class="n">1</span>작성 기준 <span class="tag" id="tplinfo"></span></h2>
+  <div class="steps">
+    <div><b>① 예산안 만들기</b> — 「판관비 예산안 자동작성」으로 내년 판관비 예산안(사업비 예산편성 엑셀)을 만듭니다.</div>
+    <div><b>② 자료 올리기</b> — 현장마다 전년도 예산 · 금년도 예산안 · 전년도 사용내역(SAP 엑셀)을 올리고, 실적에 넣을 작성자를 고릅니다.</div>
+    <div><b>③ 내려받기</b> — 사내 업로드 양식(「사업관리비 실적계획」) 그대로 채운 엑셀과, 실적 칸의 근거자료 엑셀을 받습니다.</div>
+  </div>
+  <div class="row">
+    <label>금년도(예산) <input type="number" id="year" min="2020" max="2099" placeholder="자동"> 년</label>
+    <span id="yinfo" class="hint"></span>
+  </div>
+  <div class="hint" style="margin-top:6px">금년도는 처음 올린 예산안 파일에서 저절로 잡힙니다(「27년 예산」 시트 → 2027). 양식 머리글의 연도(26년 예산·실적 / 27년 예산)도 여기에 맞춰 바뀝니다.</div>
+</section>
+
+<section class="card" id="c2">
+  <h2><span class="n">2</span>현장별 자료 <span class="hint">현장을 여러 개 넣으면 한 양식 파일에 현장 블록이 차례로 쌓입니다 · 파일은 칸에 끌어다 놓아도 됩니다</span></h2>
+  <div id="sites"></div>
+  <div class="row"><button class="sub" id="bAdd">+ 현장 추가</button>
+    <button class="sub small" id="bEx">예시로 해 보기</button><span class="hint">가짜 현장 자료(전년도 예산 · 금년도 예산안 · 사용내역 2개)를 불러와 어떻게 채워지는지 봅니다</span></div>
+</section>
+
+<section class="card" id="c3">
+  <h2><span class="n">3</span>엑셀 내려받기 <span class="hint">양식은 사내 틀(열·머리글·서식) 그대로 — 금액 칸은 산식, 합계·비율은 양식의 수식</span></h2>
+  <div id="gmsg"></div>
+  <div class="row"><label>양식 파일 이름 <input type="text" id="fname" size="62"></label><button id="bForm" disabled>사내 양식 내려받기</button></div>
+  <div class="row"><label>근거자료 파일 이름 <input type="text" id="ename" size="62"></label><button class="sub" id="bEv" disabled>실적 근거자료 내려받기</button>
+    <span class="hint">비목별·계정별 집계(양식 값과 대사)와 실적에 넣은 전표·뺀 전표 내역</span></div>
+  <div id="smsg"></div>
+</section>
+</main>
+
+<script>
+const $ = (s, el) => (el || document).querySelector(s);
+const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
+window.addEventListener('error', e => console.error('PAGEERR', e.message, e.filename, e.lineno));
+window.addEventListener('unhandledrejection', e => console.error('PAGEREJ', e.reason && (e.reason.stack || e.reason)));
+const VERSION = '2026.11.10.1508';
+const S = {mode: null, info: null, year: null, sites: [], plan: null, seq: 0, timer: null, nextId: 1, fnameTouched: false, enameTouched: false};
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const won = v => (v === null || v === undefined || v === '' || isNaN(v)) ? '' : (Math.round(v) === 0 ? '-' : Math.round(v).toLocaleString());
+const pct = v => (!v) ? '-' : (v * 100).toFixed(1) + '%';
+const yy = y => String(y % 100).padStart(2, '0');
+
+// ───────────── PC 판(사내 서버) / 웹판(브라우저 안 Python) 자동 판별
+let worker = null, resolveReady, workerReady = null;
+const pending = {};
+let rseq = 0;
+function setBanner(msg, err) {
+  const b = $('#banner');
+  b.className = 'msg ' + (err ? 'err' : 'warn') + (msg ? '' : ' hidden');
+  b.innerHTML = msg ? (err ? '' : '<span class="spin"></span> ') + esc(msg) : '';
+}
+async function detectMode() {
+  try {
+    const r = await fetch('/api/ping', {cache: 'no-store'});
+    const j = await r.json();
+    if (j && j.app === 'pangwanbi-budget') return 'pc';
+  } catch (e) {}
+  return 'web';
+}
+function startWorker() {
+  workerReady = new Promise(r => resolveReady = r);
+  worker = new Worker('worker.js?v=' + VERSION, {type: 'module'});
+  worker.onmessage = e => {
+    const d = e.data;
+    if (d.status !== undefined) { setBanner(d.status); return; }
+    if (d.log) { console.log(d.log); return; }
+    if (d.fatal) { setBanner('실행 환경을 준비하지 못했습니다: ' + d.fatal + ' — 인터넷 연결을 확인하고 새로고침해 주세요.', true); return; }
+    if (d.ready) { resolveReady(d); return; }
+    if (d.id && pending[d.id]) { pending[d.id](d.result); delete pending[d.id]; }
+  };
+  worker.onerror = e => setBanner('실행 환경 오류: ' + (e.message || e), true);
+}
+function wcall(cmd, args, transfer) {
+  return new Promise(res => { const id = ++rseq; pending[id] = res; worker.postMessage({id, cmd, args}, transfer || []); });
+}
+async function jfetch(url, opt) {
+  const r = await fetch(url, opt);
+  const ct = r.headers.get('Content-Type') || '';
+  if (ct.includes('json')) return await r.json();
+  if (!r.ok) throw new Error('서버 오류 ' + r.status);
+  return {ok: true, xlsx: new Uint8Array(await r.arrayBuffer())};
+}
+async function route(cmd, body, file) {
+  let r;
+  if (S.mode === 'pc') {
+    if (cmd === 'info') r = await jfetch('/api/siljeok/info');
+    else if (cmd === 'parse') { const fd = new FormData(); fd.append('file', file, file.name); r = await jfetch('/api/siljeok/parse', {method: 'POST', body: fd}); }
+    else r = await jfetch('/api/siljeok/' + cmd, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
+  } else {
+    await workerReady;
+    if (cmd === 'info') r = await wcall('info');
+    else if (cmd === 'parse') r = await wcall('parse', {name: file.name, file: await file.arrayBuffer()});
+    else r = await wcall(cmd, {state: body.state});
+  }
+  if (!r.ok) throw new Error(r.error || '오류');
+  return r;
+}
+
+// ───────────── 고른 작성자 기억(이 브라우저)
+function memLoad() { try { return JSON.parse(localStorage.getItem('siljeok_creators') || '{}') || {}; } catch (e) { return {}; } }
+function memSave(m) { try { localStorage.setItem('siljeok_creators', JSON.stringify(m)); } catch (e) {} }
+function remember(names, on) { const m = memLoad(); for (const n of names) m[n] = !!on; memSave(m); }
+
+// ───────────── 현장 카드
+function newSite() {
+  const s = {id: S.nextId++, name: '', code: '', nameTouched: false, codeTouched: false, prev: null, next: null, ledgers: [],
+    creators: null, seen: {}, accmap: {}, inc: {}, note_diff: '', note_change: '', busy: 0, msgs: [], months: false};
+  S.sites.push(s);
+  return s;
+}
+const siteEl = s => $(`.site[data-id="${s.id}"]`);
+function siteHtml(s) {
+  return `<div class="site" data-id="${s.id}">
+  <div class="shead"><span class="sno"></span>
+    <label>현장명 <input type="text" class="sname" placeholder="예) 평택고덕1차(Abc-36BL)"></label>
+    <label>현장코드 <input type="text" class="scode" placeholder="P0000" maxlength="10"></label>
+    <span class="stitle hint"></span><a class="del sdel">현장 삭제</a></div>
+  <div class="slots">
+    <div class="slot" data-slot="prev"><div class="st"><b>① 전년도 예산</b><small class="y1"></small></div>
+      <div class="pick"><label class="btn sub small">파일 고르기<input type="file" accept=".xlsx"></label><span class="hint">작년에 낸 예산안 엑셀(「사업비 예산편성」) — 올해 처음 예산을 짜는 현장은 비워 둡니다</span></div><div class="sf"></div></div>
+    <div class="slot" data-slot="next"><div class="st"><b>② 금년도 예산안</b><small class="y2"></small></div>
+      <div class="pick"><label class="btn sub small">파일 고르기<input type="file" accept=".xlsx"></label><span class="hint">「판관비 예산안 자동작성」으로 만든 예산안 엑셀</span></div><div class="sf"></div></div>
+    <div class="slot" data-slot="ledger"><div class="st"><b>③ 전년도 사용내역</b><small class="y3"></small></div>
+      <div class="pick"><label class="btn sub small">파일 고르기(여러 개)<input type="file" accept=".xlsx" multiple></label><span class="hint">SAP G/L 내역 엑셀(전기일자·G/L 계정명·차액·생성자명) — 1~8월, 9~11월처럼 나눠 받은 파일을 모두</span></div><div class="sf"></div></div>
+  </div>
+  <div class="smsg"></div>
+  <div class="creators hidden"></div>
+  <details class="sec accts hidden"><summary>계정별 반영 내용 <span class="tag"></span><span class="hint">고른 작성자의 전표를 G/L 계정별로 모은 것 — 계정을 다른 비목으로 옮기거나 실적에서 뺄 수 있습니다</span></summary><div class="in scroll"></div></details>
+  <details class="sec notes"><summary>분석 문구 <span class="tag">선택</span><span class="hint">적으면 첫 비목 줄에 넣고 나머지 줄은 '상동' — 비우면 빈칸(엑셀에서 직접 적어도 됩니다)</span></summary>
+    <div class="in"><label><span class="nj"></span><input type="text" class="note_diff" placeholder="예) 26년 분양완료"></label>
+    <label><span>전년 실적 대비 증감요인(상세)</span><input type="text" class="note_change" placeholder="예) 26년 분양완료 운영현장"></label></div></details>
+  <div class="pv"></div>
+</div>`;
+}
+function addSiteCard(s) {
+  $('#sites').insertAdjacentHTML('beforeend', siteHtml(s));
+  const el = siteEl(s);
+  $('.sname', el).addEventListener('input', e => { s.name = e.target.value; s.nameTouched = true; refresh(); });
+  $('.scode', el).addEventListener('input', e => { s.code = e.target.value.trim().toUpperCase(); s.codeTouched = true; refresh(); });
+  $('.note_diff', el).addEventListener('input', e => { s.note_diff = e.target.value; });
+  $('.note_change', el).addEventListener('input', e => { s.note_change = e.target.value; });
+  $('.sdel', el).addEventListener('click', () => {
+    if ((s.prev || s.next || s.ledgers.length) && !confirm('이 현장에 올린 자료를 모두 지울까요?')) return;
+    S.sites = S.sites.filter(x => x !== s);
+    el.remove();
+    if (!S.sites.length) addSiteCard(newSite());
+    renumber(); refresh();
+  });
+  for (const slot of $$('.slot', el)) {
+    const kind = slot.dataset.slot;
+    $('input[type=file]', slot).addEventListener('change', e => { const fs = Array.from(e.target.files); e.target.value = ''; addFiles(s, kind, fs); });
+    slot.addEventListener('dragover', e => { e.preventDefault(); slot.classList.add('over'); });
+    slot.addEventListener('dragleave', () => slot.classList.remove('over'));
+    slot.addEventListener('drop', e => { e.preventDefault(); slot.classList.remove('over'); addFiles(s, kind, Array.from(e.dataTransfer.files || [])); });
+  }
+  renumber(); renderFiles(s);
+}
+function renumber() {
+  S.sites.forEach((s, i) => { const el = siteEl(s); if (el) $('.sno', el).textContent = '현장 ' + (i + 1); });
+  $$('.site .sdel').forEach(a => a.classList.toggle('hidden', S.sites.length === 1 && !S.sites[0].prev && !S.sites[0].next && !S.sites[0].ledgers.length));
+}
+function siteMsg(s, kind, text) {
+  s.msgs.push({kind, text});
+  if (s.msgs.length > 5) s.msgs.shift();
+  renderMsgs(s);
+}
+function renderMsgs(s) {
+  const el = $('.smsg', siteEl(s));
+  el.innerHTML = s.msgs.map((m, i) => `<div class="msg ${m.kind}"><a class="x" data-i="${i}">✕</a>${esc(m.text)}</div>`).join('');
+  $$('a.x', el).forEach(a => a.addEventListener('click', () => { s.msgs.splice(+a.dataset.i, 1); renderMsgs(s); }));
+}
+function renderFiles(s) {
+  const el = siteEl(s);
+  if (!el) return;
+  const y = S.year;
+  $('.y1', el).textContent = y ? `${y - 1}년 예산` : '';
+  $('.y2', el).textContent = y ? `${y}년 예산` : '';
+  $('.y3', el).textContent = y ? `${y - 1}년 실적` : '';
+  $('.nj', el).textContent = `${y ? yy(y - 1) + '년 ' : ''}예산대비 실적차이 분석(상세)`;
+  const calcNote = b => b.calc === 'cached' ? '' : ' · <span class="tag warn" title="웹판에서 내려받아 Excel 로 저장한 적이 없는 파일이라 저장된 값이 없습니다. 수식을 직접 계산했습니다.">수식을 직접 계산</span>';
+  const bud = (b, key) => b ? `<div class="file"><span>📄</span><span><span class="fn">${esc(b.file)}</span> <span class="fi">— ${b.year}년 예산 <b>${won(b.total)}</b>원 · 비목 ${b.items.length}개${b.site ? ' · ' + esc(b.site) : ''}${calcNote(b)}</span></span><a class="x" data-rm="${key}">✕ 빼기</a></div>` : '';
+  $('.slot[data-slot=prev] .sf', el).innerHTML = bud(s.prev, 'prev');
+  $('.slot[data-slot=next] .sf', el).innerHTML = bud(s.next, 'next');
+  $('.slot[data-slot=ledger] .sf', el).innerHTML = s.ledgers.map((g, i) => `<div class="file"><span>📄</span><span><span class="fn">${esc(g.file)}</span> <span class="fi">— ${g.n.toLocaleString()}줄 · ${esc(g.date_min || '-')} ~ ${esc(g.date_max || '-')}${g.skipped && g.skipped.carry ? ` · 이월잔액 ${g.skipped.carry}줄 제외` : ''}</span></span><a class="x" data-rm="ledger" data-i="${i}">✕ 빼기</a></div>`).join('');
+  $('.slot[data-slot=prev]', el).classList.toggle('has', !!s.prev);
+  $('.slot[data-slot=next]', el).classList.toggle('has', !!s.next);
+  $('.slot[data-slot=ledger]', el).classList.toggle('has', s.ledgers.length > 0);
+  const busy = s.busy ? `<div class="file"><span class="spin"></span> <span class="fi">파일 읽는 중…</span></div>` : '';
+  if (busy) $('.slot[data-slot=' + (s.busySlot || 'ledger') + '] .sf', el).insertAdjacentHTML('beforeend', busy);
+  $$('a.x[data-rm]', el).forEach(a => a.addEventListener('click', () => {
+    if (a.dataset.rm === 'ledger') { s.ledgers.splice(+a.dataset.i, 1); if (!s.ledgers.length) { s.creators = null; s.seen = {}; s.accmap = {}; } }
+    else s[a.dataset.rm] = null;
+    renderFiles(s); renumber(); refresh();
+  }));
+}
+async function addFiles(s, slot, files) {
+  for (const f of files) {
+    if (!/\.xlsx$/i.test(f.name)) { siteMsg(s, 'err', `${f.name}: 엑셀(.xlsx) 파일만 올릴 수 있습니다 — .xls 파일은 Excel 에서 .xlsx 로 저장한 뒤 올려 주세요.`); continue; }
+    s.busy++; s.busySlot = slot; renderFiles(s);
+    try { place(s, slot, await route('parse', null, f)); }
+    catch (e) { siteMsg(s, 'err', `${f.name}: ${e.message}`); }
+    s.busy--; renderFiles(s);
+  }
+  renumber(); refresh();
+}
+function place(s, slot, r) {
+  if (r.kind === 'ledger') {
+    const i = s.ledgers.findIndex(x => x.file === r.file);
+    if (i >= 0) s.ledgers[i] = r; else s.ledgers.push(r);
+    if (slot !== 'ledger') siteMsg(s, 'ok', `${r.file}: 사용내역 파일이라 ③ 전년도 사용내역 칸에 넣었습니다.`);
+    if (!r.has_creator) siteMsg(s, 'warn', `${r.file}: 생성자명 열이 없어 작성자를 가릴 수 없습니다 — 모든 줄이 '(작성자 없음)' 으로 모입니다.`);
+    return;
+  }
+  if (!S.year) { S.year = slot === 'prev' ? r.year + 1 : r.year; $('#year').value = S.year; S.sites.forEach(renderFiles); }
+  const to = r.year === S.year ? 'next' : (r.year === S.year - 1 ? 'prev' : null);
+  if (!to) { siteMsg(s, 'err', `${r.file}: ${r.year}년 예산 파일입니다 — 작성 기준(금년도 ${S.year}년 · 전년도 ${S.year - 1}년)과 맞지 않습니다. 맨 위 '금년도'를 고치거나 파일을 확인해 주세요.`); return; }
+  if (slot !== to) siteMsg(s, 'ok', `${r.file}: ${r.year}년 예산이라 ${to === 'next' ? '② 금년도 예산안' : '① 전년도 예산'} 칸에 넣었습니다.`);
+  s[to] = r;
+  if (!s.nameTouched && r.site && (to === 'next' || !s.name)) { s.name = r.site; $('.sname', siteEl(s)).value = r.site; }
+}
+function reslot() {
+  for (const s of S.sites) {
+    const bs = [s.prev, s.next].filter(Boolean);
+    s.prev = s.next = null;
+    for (const b of bs) {
+      if (b.year === S.year) s.next = b;
+      else if (b.year === S.year - 1) s.prev = b;
+      else siteMsg(s, 'warn', `${b.file}: ${b.year}년 예산이라 작성 기준과 맞지 않아 뺐습니다.`);
+    }
+    renderFiles(s);
+  }
+}
+
+// ───────────── 예시(가짜 현장 자료 — 웹판·PC 판이 같은 파일을 쓴다)
+const EX_NEXT = '(예시3) 기공급 잔여분양 - 26.05 오픈, 27.06 MH종료.xlsx';
+const EX_FILES = [['(예시) 전년도 예산 - 26년 예산안.xlsx', 'prev'], [EX_NEXT, 'next'], ['(예시) 사용내역 1-8월.xlsx', 'ledger'], ['(예시) 사용내역 9-11월.xlsx', 'ledger']];
+const EX_STAFF = ['홍길동', '김영희'], EX_OTHERS = ['이재무', '박세무'];
+async function loadExample() {
+  let s = S.sites.find(x => !x.prev && !x.next && !x.ledgers.length && !x.busy);
+  if (!s) { s = newSite(); addSiteCard(s); }
+  $('#bEx').disabled = true;
+  try {
+    const files = [];
+    for (const [name, slot] of EX_FILES) {
+      const base = S.mode === 'pc' ? '/siljeok/examples/' : (name === EX_NEXT ? '../examples/' : 'examples/');
+      const r = await fetch(base + encodeURIComponent(name) + '?v=' + VERSION);
+      if (!r.ok) throw new Error('예시 파일을 받지 못했습니다: ' + name);
+      files.push([slot, new File([await r.blob()], name)]);
+    }
+    s.creators = EX_STAFF.slice();
+    s.seen = {};
+    for (const n of EX_STAFF.concat(EX_OTHERS)) s.seen[n] = 'old';
+    for (const [slot, f] of files) await addFiles(s, slot, [f]);
+  } catch (e) { siteMsg(s, 'err', e.message); }
+  $('#bEx').disabled = false;
+}
+
+// ───────────── 계산(미리보기)
+// 자료를 하나라도 올린 현장만 계산·엑셀에 넣는다(빈 카드는 건너뜀)
+const activeSites = () => S.sites.filter(s => s.prev || s.next || s.ledgers.length);
+function collect(act) {
+  return {year: S.year, sites: (act || activeSites()).map(s => ({name: s.name, code: s.code, prev: s.prev, next: s.next, ledgers: s.ledgers, creators: s.creators,
+    accmap: s.accmap, inc: s.inc, note_diff: s.note_diff, note_change: s.note_change}))};
+}
+const hasData = () => activeSites().length > 0;
+function refresh() { clearTimeout(S.timer); S.timer = setTimeout(calc, 200); }
+async function calc() {
+  const seq = ++S.seq;
+  if (!hasData()) { S.plan = null; S.sites.forEach(s => renderPlan(s, null)); renderGlobal(); return; }
+  const act = activeSites();
+  let p;
+  try { p = await route('plan', {state: collect(act)}); }
+  catch (e) { if (seq === S.seq) $('#gmsg').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; return; }
+  if (seq !== S.seq) return;
+  S.plan = p;
+  if (!S.year && p.year) { S.year = p.year; $('#year').placeholder = p.year; S.sites.forEach(renderFiles); }
+  let again = false;
+  const mem = memLoad();
+  act.forEach((s, i) => {
+    const ps = p.sites[i];
+    if (!ps) return;
+    if (s.ledgers.length) {                                  // 처음 보는 작성자 가운데 기억해 둔 이름은 미리 고른다
+      const fresh = ps.creators.filter(c => !(c.name in s.seen));
+      if (fresh.length) {
+        if (s.creators === null) s.creators = [];
+        for (const c of fresh) { s.seen[c.name] = mem[c.name] === undefined ? 'new' : 'old'; if (mem[c.name] === true) { s.creators.push(c.name); again = true; } }
+      }
+    }
+    if (!s.codeTouched && !s.code && ps.ledger && ps.ledger.suggest_code) { s.code = ps.ledger.suggest_code; $('.scode', siteEl(s)).value = s.code; again = true; }
+  });
+  if (again) return calc();
+  S.sites.forEach(s => renderPlan(s, act.includes(s) ? p.sites[act.indexOf(s)] : null));
+  renderGlobal();
+}
+function renderGlobal() {
+  const p = S.plan;
+  const y = S.year || (p && p.year);
+  $('#yinfo').innerHTML = y ? `전년도(예산·실적) <b>${y - 1}</b>년 · 양식 머리글: ${yy(y - 1)}년 예산 · ${yy(y - 1)}년 실적 · ${yy(y)}년 예산` : '';
+  if (!S.fnameTouched) $('#fname').value = p ? p.form_name : '';
+  if (!S.enameTouched) $('#ename').value = p ? p.evidence_name : '';
+  const errs = p ? p.errors : [];
+  $('#bForm').disabled = !p || errs.length > 0;
+  $('#bEv').disabled = !p || errs.length > 0 || !p.sites.some(s => s.has_ledger);
+  let h = '';
+  if (!p) h = '<div class="msg warn">먼저 위에서 현장 자료를 올려 주세요.</div>';
+  else if (errs.length) h = `<div class="msg err">내려받기 전에 고칠 것:<ul>${errs.map(e => `<li>${esc(e)}</li>`).join('')}</ul></div>`;
+  else {
+    const tk = p.sites.reduce((a, s) => a + s.total.k, 0), td = p.sites.reduce((a, s) => a + s.total.d, 0), th = p.sites.reduce((a, s) => a + s.total.h, 0);
+    h = `<div class="msg ok">현장 ${p.sites.length}개 · ${yy(p.prev_year)}년 예산 <b>${won(td) || 0}</b>원 · ${yy(p.prev_year)}년 실적 <b>${won(th) || 0}</b>원 · ${yy(p.year)}년 예산 <b>${won(tk) || 0}</b>원</div>`;
+  }
+  $('#gmsg').innerHTML = h;
+}
+function renderPlan(s, ps) {
+  const el = siteEl(s);
+  if (!el) return;
+  const y = S.year || (S.plan && S.plan.year) || 0;
+  $('.stitle', el).textContent = ps ? '양식 제목: ' + ps.title : '';
+  // 작성자
+  const cr = $('.creators', el);
+  if (ps && s.ledgers.length) {
+    const on = new Set(s.creators || []);
+    const sum = ps.creators.filter(c => on.has(c.name)).reduce((a, c) => a + c.amt, 0);
+    cr.classList.remove('hidden');
+    cr.innerHTML = `<div class="ttl"><b>실적에 넣을 작성자(생성자명)</b><span class="tag ${on.size ? 'ok' : 'warn'}">${on.size}명 고름 · ${won(sum) || 0}원</span>
+      <button class="sub small" data-all="1">모두 고르기</button><button class="sub small" data-all="0">모두 풀기</button>
+      <span class="hint">고른 사람이 올린 전표만 실적(1~8월·9~12월)에 넣습니다 — 재무·세무 등 다른 부서가 처리한 전표를 빼는 용도 · 고른 이름은 이 브라우저에 기억됩니다</span></div>`
+      + ps.creators.map(c => `<label class="chk ${on.has(c.name) ? 'on' : ''} ${s.seen[c.name] === 'new' && !on.has(c.name) ? 'new' : ''}" title="${s.seen[c.name] === 'new' ? '처음 보는 이름입니다' : ''}"><input type="checkbox" data-name="${esc(c.name)}" ${on.has(c.name) ? 'checked' : ''}>${esc(c.name)} <small>${won(c.amt) || 0}원 · ${c.n}건</small></label>`).join('');
+    $$('input[type=checkbox]', cr).forEach(cb => cb.addEventListener('change', () => {
+      const set = new Set(s.creators || []);
+      if (cb.checked) set.add(cb.dataset.name); else set.delete(cb.dataset.name);
+      s.creators = Array.from(set); remember([cb.dataset.name], cb.checked); s.seen[cb.dataset.name] = 'old';
+      cb.parentElement.classList.toggle('on', cb.checked); refresh();
+    }));
+    $$('button[data-all]', cr).forEach(b => b.addEventListener('click', () => {
+      const all = b.dataset.all === '1';
+      s.creators = all ? ps.creators.map(c => c.name) : [];
+      remember(ps.creators.map(c => c.name), all); ps.creators.forEach(c => { s.seen[c.name] = 'old'; });
+      refresh();
+    }));
+  } else { cr.classList.add('hidden'); cr.innerHTML = ''; }
+  // 계정별 반영 내용
+  const ac = $('.accts', el);
+  if (ps && ps.accounts.length) {
+    ac.classList.remove('hidden');
+    const moved = ps.accounts.filter(a => a.item !== a.auto).length;
+    $('summary .tag', ac).textContent = `계정 ${ps.accounts.length}개` + (moved ? ` · 바꾼 것 ${moved}개` : '');
+    $('summary .tag', ac).className = 'tag' + (moved ? ' warn' : '');
+    const opts = a => ps.items_all.map(it => `<option value="${esc(it)}" ${a.item === it ? 'selected' : ''}>${esc(it)}${it === a.auto ? ' (자동)' : ''}</option>`).join('')
+      + (ps.items_all.includes(a.auto) ? '' : `<option value="${esc(a.auto)}" ${a.item === a.auto ? 'selected' : ''}>${esc(a.auto)} (자동)</option>`)
+      + `<option value="-" ${a.item === '-' ? 'selected' : ''}>— 실적에서 뺌 —</option>`;
+    $('.in', ac).innerHTML = `<table class="acc"><tr><th>G/L 계정</th><th>G/L 계정명</th><th>전표</th><th>1~8월</th><th>9~12월</th><th>양식에 넣을 비목</th></tr>`
+      + ps.accounts.map(a => `<tr class="${a.item === '-' ? 'out' : (a.item !== a.auto ? 'moved' : '')}"><td>${esc(a.acct)}</td><td class="l">${esc(a.name)}</td><td class="num">${a.n}</td><td class="num">${won(a.f)}</td><td class="num">${won(a.g)}</td>
+        <td class="keep"><select data-acct="${esc(a.name)}" data-auto="${esc(a.auto)}">${opts(a)}</select></td></tr>`).join('') + '</table>';
+    $$('select', ac).forEach(sel => sel.addEventListener('change', () => {
+      if (sel.value === sel.dataset.auto) delete s.accmap[sel.dataset.acct]; else s.accmap[sel.dataset.acct] = sel.value;
+      refresh();
+    }));
+  } else { ac.classList.add('hidden'); }
+  // 미리보기
+  const pv = $('.pv', el);
+  if (!ps || !ps.rows.length) {
+    pv.innerHTML = ps && (ps.errors.length || ps.warnings.length) ? notes(ps) : '';
+    return;
+  }
+  const py = yy(y - 1), cy = yy(y);
+  const blank = v => v === null ? '<td class="num blank" title="사용내역을 올리면 채워집니다">(빈칸)</td>' : null;
+  const row = r => `<tr><td class="it">${esc(r.item)}</td><td>${esc(r.semok)}</td><td class="num">${won(r.c)}</td>
+    <td class="num" ${r.d_f ? `title="=${esc(r.d_f)}"` : ''}>${won(r.d)}</td>
+    <td class="num"><input class="inc" type="text" inputmode="numeric" data-item="${esc(r.item)}" value="${r.e ? Math.round(r.e).toLocaleString() : ''}" placeholder="0"></td>
+    ${blank(r.f) || `<td class="num" ${r.f_f ? `title="=${esc(r.f_f)}"` : ''}>${won(r.f)}</td>`}${blank(r.g) || `<td class="num" ${r.g_f ? `title="=${esc(r.g_f)}"` : ''}>${won(r.g)}</td>`}
+    <td class="num">${won(r.h)}</td><td class="pct">${pct(r.i)}</td><td class="num k">${won(r.k)}</td><td class="pct">${pct(r.l)}</td><td class="basis">${esc(r.basis)}</td></tr>`;
+  const t = ps.total;
+  let h = `<h3>양식에 들어갈 내용 <span class="hint">${esc(ps.title)}</span><span style="margin-left:auto">${cy}년 예산 <span class="big">${won(t.k) || 0}</span><span class="hint">원</span></span></h3>
+  <div class="scroll"><table class="out"><tr><th rowspan="2">비목</th><th rowspan="2">세목</th><th colspan="3">${py}년 예산</th><th colspan="3">${py}년 실적</th><th rowspan="2" class="s2">예산比</th><th rowspan="2">${cy}년 예산</th><th rowspan="2" class="s2">실적比</th><th rowspan="2">예산 편성 근거</th></tr>
+  <tr><th class="s2">총예산</th><th class="s2">최초편성</th><th class="s2">증액금액</th><th class="s2">1~8월실적</th><th class="s2">9~12월실적</th><th class="s2">연간전망</th></tr>`
+    + ps.rows.map(row).join('')
+    + `<tr class="tot"><td colspan="2">합 계</td><td class="num">${won(t.c)}</td><td class="num">${won(t.d)}</td><td class="num">${won(t.e)}</td><td class="num">${t.f === null ? '' : won(t.f)}</td><td class="num">${t.g === null ? '' : won(t.g)}</td>
+      <td class="num">${won(t.h)}</td><td>${pct(t.i)}</td><td class="num">${won(t.k)}</td><td>${pct(t.l)}</td><td></td></tr></table></div>
+  <div class="row" style="margin-top:6px"><button class="sub small bMon">${s.months ? '월별 예산 접기' : cy + '년 월별 예산 보기'}</button>
+    <span class="hint">금액에 마우스를 올리면 엑셀에 들어갈 산식이 보입니다 · 증액금액은 여기에 직접 적습니다(원)</span></div>`;
+  if (s.months) {
+    h += `<div class="scroll"><table class="mon"><tr><th>비목</th>${[...Array(12)].map((_, m) => `<th>${m + 1}월</th>`).join('')}<th>계</th></tr>`
+      + ps.rows.map(r => `<tr><td class="it">${esc(r.item)}</td>${r.months.map(m => `<td class="num" ${m.f ? `title="=${esc(m.f)}"` : ''}>${won(m.v)}</td>`).join('')}<td class="num"><b>${won(r.k)}</b></td></tr>`).join('')
+      + `<tr class="tot"><td>합 계</td>${t.months.map(v => `<td class="num">${won(v)}</td>`).join('')}<td class="num">${won(t.k)}</td></tr></table></div>`;
+  }
+  pv.innerHTML = h + notes(ps);
+  $('.bMon', pv).addEventListener('click', () => { s.months = !s.months; renderPlan(s, ps); });
+  $$('input.inc', pv).forEach(inp => inp.addEventListener('change', () => {
+    const v = parseFloat(String(inp.value).replace(/[,\s원]/g, ''));
+    if (v) s.inc[inp.dataset.item] = v; else delete s.inc[inp.dataset.item];
+    refresh();
+  }));
+}
+function notes(ps) {
+  let h = '';
+  if (ps.errors.length) h += `<div class="msg err"><ul>${ps.errors.map(e => `<li>${esc(e)}</li>`).join('')}</ul></div>`;
+  if (ps.warnings.length) h += `<div class="msg warn">확인할 것:<ul>${ps.warnings.map(e => `<li>${esc(e)}</li>`).join('')}</ul></div>`;
+  return h;
+}
+
+// ───────────── 내려받기
+function saveBlob(u8, name) {
+  const blob = new Blob([u8], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+}
+async function download(kind) {
+  const isForm = kind === 'form';
+  let name = ($(isForm ? '#fname' : '#ename').value || (isForm ? '사업관리비_실적계획_양식' : '실적_근거자료')).trim();
+  if (!/\.xlsx$/i.test(name)) name += '.xlsx';
+  $('#smsg').innerHTML = `<div class="msg warn"><span class="spin"></span> ${isForm ? '사내 양식에 채우는 중…' : '근거자료를 만드는 중…'}</div>`;
+  try {
+    const r = await route(kind, {state: collect(), name});
+    saveBlob(r.xlsx, name);
+    $('#smsg').innerHTML = `<div class="msg ok">내려받았습니다: <b>${esc(name)}</b>` + (isForm
+      ? ' — 본사 서버에 올리기 전에 Excel 에서 한 번 열어 내용을 확인하고 저장해 주세요(분석 문구·비고는 필요하면 엑셀에서 직접 적습니다).'
+      : ' — 「비목별 집계」의 차이 칸이 0 이면 양식에 넣은 실적과 전표 합계가 같습니다.') + '</div>';
+  } catch (e) { $('#smsg').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
+
+// ───────────── 시작
+(async function () {
+  S.mode = await detectMode();
+  if (S.mode === 'web') startWorker();
+  $('#toBudget').href = S.mode === 'pc' ? '/' : '../';
+  $('#toJichul').href = S.mode === 'pc' ? '/jichul/' : '../jichul/';
+  addSiteCard(newSite());
+  renderGlobal();
+  $('#bAdd').addEventListener('click', () => { addSiteCard(newSite()); });
+  $('#bEx').addEventListener('click', loadExample);
+  $('#year').addEventListener('change', () => {
+    const v = parseInt($('#year').value, 10);
+    S.year = v >= 2000 && v < 2100 ? v : null;
+    if (!S.year) $('#year').value = '';
+    reslot(); refresh();
+  });
+  $('#fname').addEventListener('input', () => { S.fnameTouched = !!$('#fname').value; });
+  $('#ename').addEventListener('input', () => { S.enameTouched = !!$('#ename').value; });
+  $('#bForm').addEventListener('click', () => download('form'));
+  $('#bEv').addEventListener('click', () => download('evidence'));
+  try {
+    const j = await route('info');
+    S.info = j;
+    $('#tplinfo').textContent = '사내 양식 틀: ' + (j.template || '-');
+    if (j.share_url) $('#share').textContent = '팀원 주소: ' + j.share_url;
+    else if (S.mode === 'web') $('#share').textContent = '웹판 — 올린 파일은 서버로 가지 않고 브라우저 안에서 처리합니다';
+  } catch (e) { setBanner(e.message, true); }
+})();
+</script>
+</body>
+</html>
