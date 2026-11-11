@@ -25,6 +25,24 @@ sys.path.insert(0, HERE)
 import kijun_parser   # noqa: E402
 
 TEMPLATE_GLOB = "판관비 예산안 자동작성 양식_*.xlsx"
+BUDGET_DIR_NAME = "★ 판관비 예산안"
+
+
+def find_budget_root(start=ROOT):
+    """예산안 자료 폴더(1. 본사업무\\★ 판관비 예산안)를 위쪽 폴더들에서 찾는다.
+    저장소를 AI자동화\\1. 자동화 시스템 같은 곳으로 옮겨도, 외장하드가 E:/F: 어느 쪽이어도 같은 폴더를 쓴다.
+    못 찾으면 예전 규칙대로 저장소 바로 위 폴더(app\\server.py 의 _find_budget_root 와 같은 규칙)."""
+    p = os.path.abspath(start)
+    while True:
+        parent = os.path.dirname(p)
+        if not parent or parent == p:
+            return os.path.dirname(os.path.abspath(start))
+        if os.path.basename(parent) == BUDGET_DIR_NAME:
+            return parent
+        cand = os.path.join(parent, BUDGET_DIR_NAME)
+        if os.path.isdir(cand):
+            return cand
+        p = parent
 
 
 def templates():
@@ -131,7 +149,7 @@ def apply(kijun, target=None, inplace=False):
 def main(argv):
     inplace = "--inplace" in argv
     args = [a for a in argv if not a.startswith("--")]
-    kijun = args[0] if args else pick_file("새 PM팀 판관비 예산기준(안) 엑셀을 고르세요", os.path.dirname(ROOT))
+    kijun = args[0] if args else pick_file("새 PM팀 판관비 예산기준(안) 엑셀을 고르세요", find_budget_root())
     if not kijun:
         print("기준안 파일을 고르지 않아 끝냅니다.")
         return 1

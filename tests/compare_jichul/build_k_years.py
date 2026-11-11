@@ -14,10 +14,11 @@ warnings.filterwarnings("ignore")
 sys.stdout.reconfigure(encoding="utf-8")
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
-BUD = os.path.dirname(ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tool"))
+import apply_kijun      # noqa: E402
 import build_template   # noqa: E402
 import site_io          # noqa: E402
+BUD = apply_kijun.find_budget_root(ROOT)   # ★ 판관비 예산안 (저장소 위치와 무관)
 
 KIJUN = {
     2027: os.path.join(BUD, r"★ 2027 예산안\PM팀 판관비 예산기준(안)_2026.10.15.xlsx"),

@@ -24,7 +24,24 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 APP = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(APP)                       # ☆ 예산안 자동작성
 TOOL = os.path.join(ROOT, 'tool')
-BUDGET_ROOT = os.path.dirname(ROOT)               # ★ 판관비 예산안
+def _find_budget_root(start):
+    """예산안 자료 폴더(1. 본사업무\\★ 판관비 예산안)를 위쪽 폴더들에서 찾는다 — 저장소를 AI자동화\\1. 자동화 시스템
+    같은 곳으로 옮겨도, 외장하드가 E:/F: 어느 쪽이어도 같은 폴더(tool/apply_kijun.find_budget_root 와 같은 규칙).
+    못 찾으면 예전 규칙대로 저장소 바로 위 폴더."""
+    p = start
+    while True:
+        parent = os.path.dirname(p)
+        if not parent or parent == p:
+            return os.path.dirname(start)
+        if os.path.basename(parent) == '★ 판관비 예산안':
+            return parent
+        cand = os.path.join(parent, '★ 판관비 예산안')
+        if os.path.isdir(cand):
+            return cand
+        p = parent
+
+
+BUDGET_ROOT = _find_budget_root(ROOT)             # ★ 판관비 예산안 (저장 기본 위치·폴더 열기)
 sys.path.insert(0, TOOL)
 
 PORT = 8792
